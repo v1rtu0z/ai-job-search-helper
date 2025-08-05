@@ -1,0 +1,36 @@
+{
+  "name": "job-fit-ai-assistant",
+  "version": "1.0.0",
+  "description": "Chrome extension to analyze job posting fit, tailor resumes, and draft cover letters using AI.",
+  "main": "index.js",
+  "scripts": {
+    "watch": "webpack --config webpack/webpack.dev.js --watch",
+    "build": "webpack --config webpack/webpack.prod.js",
+    "clean": "rimraf dist",
+    "test": "npx jest",
+    "style": "prettier --write \"src/**/*.{ts,tsx}\""
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/react": "^18.0.29",
+    "@types/react-dom": "^18.0.11",
+    "chrome-types": "^0.1.368",
+    "copy-webpack-plugin": "^9.0.1",
+    "glob": "^7.1.6",
+    "jest": "^29.5.0",
+    "prettier": "^3.3.3",
+    "rimraf": "^3.0.2 ",
+    "ts-jest": "^29.1.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.0.4",
+    "webpack": "^5.94.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-merge": "^5.10.0"
+  }
+}

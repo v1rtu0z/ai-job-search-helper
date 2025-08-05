@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    // ... other options
+    "types": [
+      "node", // If you're also using Node.js types
+      "react", // If you're using React
+      "react-dom", // If you're using React
+      "jest", // If you're using Jest
+//      "chrome-types" // <--- This is the key
+    ],
+    // You might also need this if 'types' array is present but not picking up node_modules/@types
+    "typeRoots": [
+      "./node_modules/@types",
+//      "./node_modules/chrome-types",
+//      "./src/types" // <--- ENSURE THIS IS INCLUDED IF YOU PUT chrome.d.ts in src/types
+    ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "node_modules/chrome-types/index.d.ts" // <--- ADD THIS LINE to explicitly include the type definition file
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+  // ... rest of your tsconfig.json
+}
