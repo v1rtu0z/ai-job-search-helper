@@ -1,5 +1,7 @@
 // Get references to HTML elements
 import * as llamaindexGoogle from "@llamaindex/google";
+import { Document, Settings, VectorStoreIndex } from "llamaindex";
+import * as pdfjs from "./pdf.mjs";
 
 const apiKeySection = document.getElementById('api-key-section') as HTMLDivElement;
 const googleApiKeyInput = document.getElementById('google-api-key') as HTMLInputElement;
@@ -12,26 +14,27 @@ const additionalDetailsTextarea = document.getElementById('additional-details') 
 const saveUserDetailsBtn = document.getElementById('save-user-details-btn') as HTMLButtonElement;
 const userDetailsMessage = document.getElementById('user-details-message') as HTMLParagraphElement;
 
-const outputDisplay = document.getElementById('output-display') as HTMLDivElement;
-const displaySelectedText = document.getElementById('display-selected-text') as HTMLSpanElement;
-const displayResumeFile = document.getElementById('display-resume-file') as HTMLSpanElement;
-const displayAdditionalDetails = document.getElementById('display-additional-details') as HTMLSpanElement;
-// New element to display the document ID
-const displayDocumentId = document.getElementById('display-document-id') as HTMLSpanElement;
-
-// New element for the instruction screen
 const instructionDisplay = document.getElementById('instruction-display') as HTMLDivElement;
 
+const markdownOutputSection = document.getElementById('markdown-output-section') as HTMLDivElement;
+const markdownContent = document.getElementById('markdown-content') as HTMLDivElement;
 
-import {Document, Settings, VectorStoreIndex} from "llamaindex";
+const loadingSpinnerSection = document.getElementById('loading-spinner-section') as HTMLDivElement;
+
+// Initialize the Showdown converter
+const converter = new showdown.Converter();
+
+// Set the workerSrc for pdf.js to use the local worker file.
+pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
+
 
 // Define interfaces for stored data
 interface UserSettings {
     googleApiKey?: string;
     resumeFileName?: string;
-    resumeFileContent?: string; // Storing the file content as a Base64 string
+    resumeFileContent?: string;
     additionalDetails?: string;
-    documentId?: string; // New field to store the unique document ID
+    documentId?: string;
 }
 
 /**
@@ -40,8 +43,9 @@ interface UserSettings {
 function hideAllSections(): void {
     apiKeySection.classList.add('hidden');
     userDetailsSection.classList.add('hidden');
-    outputDisplay.classList.add('hidden');
-    instructionDisplay.classList.add('hidden'); // Hide the new instruction section
+    instructionDisplay.classList.add('hidden');
+    markdownOutputSection.classList.add('hidden');
+    loadingSpinnerSection.classList.add('hidden');
 }
 
 /**
@@ -50,7 +54,7 @@ function hideAllSections(): void {
 function showApiKeySection(): void {
     hideAllSections();
     apiKeySection.classList.remove('hidden');
-    apiKeyMessage.textContent = ''; // Clear previous messages
+    apiKeyMessage.textContent = '';
 }
 
 /**
@@ -59,8 +63,7 @@ function showApiKeySection(): void {
 function showUserDetailsSection(): void {
     hideAllSections();
     userDetailsSection.classList.remove('hidden');
-    userDetailsMessage.textContent = ''; // Clear previous messages
-    // Load existing details if any
+    userDetailsMessage.textContent = '';
     chrome.storage.local.get(['userSettings'], (result: { userSettings?: UserSettings }) => {
         if (result.userSettings) {
             additionalDetailsTextarea.value = result.userSettings.additionalDetails || '';
@@ -76,22 +79,67 @@ function showInstructionDisplay(): void {
     instructionDisplay.classList.remove('hidden');
 }
 
+/**
+ * Shows the loading spinner.
+ */
+function showLoadingSpinner(): void {
+    hideAllSections();
+    loadingSpinnerSection.classList.remove('hidden');
+}
 
 /**
- * Shows the output display section with provided data.
- * @param selectedText The text selected by the user.
- * @param resumeFileName The name of the saved resume file.
- * @param additionalDetails The saved additional details.
- * @param documentId The unique ID of the vectorized document.
+ * Renders and shows the markdown output.
+ * @param markdown The markdown string to render.
  */
-function showOutputDisplay(selectedText: string, resumeFileName: string, additionalDetails: string, documentId: string): void {
+function showMarkdownOutput(markdown: string): void {
     hideAllSections();
-    displaySelectedText.textContent = selectedText || 'No text selected.';
-    displayResumeFile.textContent = resumeFileName || 'Not provided.';
-    displayAdditionalDetails.textContent = additionalDetails || 'Not provided.';
-    displayDocumentId.textContent = documentId || 'Not available.'; // Set the new span's text
-    outputDisplay.classList.remove('hidden');
+    const html = converter.makeHtml(markdown);
+    markdownContent.innerHTML = html;
+    markdownOutputSection.classList.remove('hidden');
 }
+
+/**
+ * Retries a promise with exponential backoff.
+ * @param fn The function to retry.
+ * @param retries The number of retries.
+ * @param delay The initial delay in milliseconds.
+ */
+async function retryWithExponentialBackoff<T>(
+    fn: () => Promise<T>,
+    retries = 3,
+    delay = 1000
+): Promise<T> {
+    try {
+        return await fn();
+    } catch (error) {
+        if (retries > 0) {
+            await new Promise(res => setTimeout(res, delay));
+            return retryWithExponentialBackoff(fn, retries - 1, delay * 2);
+        } else {
+            throw error;
+        }
+    }
+}
+
+/**
+ * Extracts text from a PDF file.
+ * @param file The PDF file to process.
+ * @returns A promise that resolves with the extracted text.
+ */
+async function getPdfText(file: File): Promise<string> {
+    const arrayBuffer = await new Response(file).arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    const numPages = pdf.numPages;
+    let fullText = '';
+    for (let i = 1; i <= numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const text = textContent.items.map((item: any) => item.str).join(' ');
+        fullText += text + ' ';
+    }
+    return fullText;
+}
+
 
 /**
  * Initializes the side panel by checking for the API key and showing the appropriate section.
@@ -102,22 +150,18 @@ async function initializeSidePanel(): Promise<void> {
         const userSettings = result.userSettings || {};
 
         if (userSettings.googleApiKey) {
-            // If API key exists, check if user details are saved
             if (userSettings.resumeFileName && userSettings.additionalDetails) {
-                // If user details are saved, show the instructions
                 showInstructionDisplay();
             } else {
-                // Otherwise, show the user details section
                 showUserDetailsSection();
             }
         } else {
-            // If API key doesn't exist, prompt for it
             showApiKeySection();
         }
     } catch (error) {
         console.error('Error initializing side panel:', error);
         apiKeyMessage.textContent = 'Error loading settings. Please try again.';
-        showApiKeySection(); // Fallback to API key input on error
+        showApiKeySection();
     }
 }
 
@@ -126,7 +170,6 @@ saveApiKeyBtn.addEventListener('click', async () => {
     const apiKey = googleApiKeyInput.value.trim();
     if (apiKey) {
         try {
-            // Retrieve existing settings to merge
             const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
             const userSettings = result.userSettings || {};
             userSettings.googleApiKey = apiKey;
@@ -135,7 +178,7 @@ saveApiKeyBtn.addEventListener('click', async () => {
             apiKeyMessage.textContent = 'API Key saved successfully!';
             apiKeyMessage.style.color = 'green';
             setTimeout(() => {
-                showUserDetailsSection(); // Move to next step
+                showUserDetailsSection();
             }, 500);
         } catch (error) {
             console.error('Error saving API key:', error);
@@ -167,8 +210,6 @@ function saveUserDetailsListener() {
                 return;
             }
 
-            // Set the llamaindex settings with the retrieved API key.
-            // This must happen before any llamaindex operations.
             Settings.llm = llamaindexGoogle.gemini({
                 apiKey: googleApiKey,
                 model: llamaindexGoogle.GEMINI_MODEL.GEMINI_2_0_FLASH,
@@ -177,48 +218,44 @@ function saveUserDetailsListener() {
                 apiKey: googleApiKey,
             });
 
-
             if (file) {
-                // Read the file content as a string
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    const fileContent = e.target?.result as string;
-                    // Generate a unique ID for the document
-                    const documentId = crypto.randomUUID();
+                let fileContent = '';
+                // Check file type and process accordingly
+                if (file.type === 'application/pdf') {
+                    console.log("Parsing a pdf file")
+                    fileContent = await getPdfText(file);
+                } else if (file.type === 'text/plain') {
+                    console.log("Parsing a plain file")
+                    fileContent = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target?.result as string);
+                        reader.onerror = (e) => reject(e);
+                        reader.readAsText(file);
+                    });
+                } else {
+                    userDetailsMessage.textContent = 'Unsupported file type. Please upload a PDF or TXT file.';
+                    userDetailsMessage.style.color = 'red';
+                    return;
+                }
 
-                    // Create a new Document from the file content with the unique ID
-                    const documents = [new Document({ text: fileContent, id_: documentId })];
+                const documentId = crypto.randomUUID();
+                const documents = [new Document({ text: fileContent, id_: documentId })];
 
-                    const originalWarn = console.warn;
-                    console.warn = (...args) => {
-                        const message = args[0];
-                        if (typeof message === 'string' && message.includes('LlamaCloud')) {
-                            return; // Suppress the specific warning
-                        }
-                        originalWarn.apply(console, args);
-                    };
+                const index = await VectorStoreIndex.fromDocuments(documents);
 
-                    // Load and index documents to create the vector store
-                    const index = await VectorStoreIndex.fromDocuments(documents);
+                console.log(`Successfully vectorized ${file.name} with ID: ${documentId}!`);
 
-                    console.warn = originalWarn;
+                userSettings.resumeFileName = file.name;
+                userSettings.resumeFileContent = fileContent;
+                userSettings.additionalDetails = additionalDetails;
+                userSettings.documentId = documentId;
 
-                    console.log(`Successfully vectorized ${file.name} with ID: ${documentId}!`);
-
-                    // Now save the details to local storage
-                    userSettings.resumeFileName = file.name;
-                    userSettings.resumeFileContent = fileContent;
-                    userSettings.additionalDetails = additionalDetails;
-                    userSettings.documentId = documentId; // Save the unique ID
-
-                    await chrome.storage.local.set({userSettings});
-                    userDetailsMessage.textContent = 'Details and file vectorized successfully!';
-                    userDetailsMessage.style.color = 'green';
-                    setTimeout(() => {
-                        showInstructionDisplay(); // Show the new instructions
-                    }, 500);
-                };
-                reader.readAsText(file); // Use readAsText for text-based files
+                await chrome.storage.local.set({ userSettings });
+                userDetailsMessage.textContent = 'Details and file vectorized successfully!';
+                userDetailsMessage.style.color = 'green';
+                setTimeout(() => {
+                    showInstructionDisplay();
+                }, 500);
             } else {
                 userDetailsMessage.textContent = 'Resume is mandatory!';
                 userDetailsMessage.style.color = 'red';
@@ -231,46 +268,111 @@ function saveUserDetailsListener() {
     };
 }
 
-// Event listener for saving user details
 saveUserDetailsBtn.addEventListener('click', saveUserDetailsListener());
 
 // Listener for messages from the service worker (e.g., selected text)
-chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, sender: chrome.runtime.MessageSender, sendResponse: () => void) => {
+chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, sender: chrome.runtime.MessageSender, sendResponse: (response?: boolean) => void) => {
     if (message.type === 'selected-text' && message.text) {
-        // Perform async operations using .then() and .catch()
-        chrome.storage.local.get(['userSettings'])
-            .then((result: { userSettings?: UserSettings }) => {
-                const userSettings = result.userSettings || {};
+        showLoadingSpinner();
 
-                // Ensure API key is present before showing analysis
-                if (!userSettings.googleApiKey) {
-                    console.warn('API Key not set. Cannot display analysis without it.');
-                    showApiKeySection(); // Redirect to API key input if missing
-                    apiKeyMessage.textContent = 'Please provide your API key to proceed.';
+        chrome.storage.local.get(['userSettings'])
+            .then(async (result: { userSettings?: UserSettings }) => {
+                const userSettings = result.userSettings || {};
+                const { googleApiKey, resumeFileContent, additionalDetails } = userSettings;
+                const jobPostingText = message.text || '';
+
+                if (!googleApiKey || !resumeFileContent) {
+                    showApiKeySection();
+                    apiKeyMessage.textContent = 'Please provide your API key and upload a resume to proceed.';
                     apiKeyMessage.style.color = 'red';
-                    // No need to return true here, as the outer function will handle it.
-                    return false; // Exit early from this .then() block
+                    return false;
                 }
 
-                // Display the selected text and stored user details, including the new document ID
-                showOutputDisplay(
-                    message.text,
-                    userSettings.resumeFileName || '',
-                    userSettings.additionalDetails || '',
-                    userSettings.documentId || ''
-                );
-                return true;
+                const prompt = `
+                    You are a professional career assistant. Your task is to analyze a job description against a user's resume and additional details.
+
+                    **Resume Content:**
+                    ${resumeFileContent}
+
+                    **Additional Details:**
+                    ${additionalDetails || 'No additional details provided.'}
+
+                    **Job Description:**
+                    ${jobPostingText}
+
+                    Analyze the job description and provide a professional, structured analysis in Markdown format. The analysis should include the following sections:
+
+                    ### Overall Fit
+                    Provide a concise summary of how well the user's profile fits the job description.
+
+                    ### Strengths
+                    List the key skills, experiences, and qualifications from the user's resume and additional details that match the job posting.
+
+                    ### Areas for Improvement
+                    Identify any potential gaps or areas where the user's profile does not align with the job description. Mention specific skills, keywords, or experience levels.
+
+                    ### Actionable Advice
+                    Provide clear, actionable advice on how the user could tailor their resume or cover letter to better highlight their fit for this specific job.
+
+                    If the provided "Job Description" text is not a job description, return a simple markdown message that says: "### Not a Job Description Found \n The selected text does not appear to be a job description. Please select a job description and try again."
+                `;
+
+                const payload = {
+                    contents: [{
+                        parts: [{ text: prompt }]
+                    }],
+                    generationConfig: {
+                        responseMimeType: "text/plain",
+                    }
+                };
+
+                const apiKey = userSettings.googleApiKey;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                try {
+                    const response = await retryWithExponentialBackoff(async () => {
+                        const res = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (!res.ok) {
+                            throw new Error(`API error: ${res.statusText}`);
+                        }
+                        return res.json();
+                    });
+
+                    let markdown = "Analysis failed. Please try again.";
+                    if (response.candidates && response.candidates.length > 0 && response.candidates[0].content.parts.length > 0) {
+                        markdown = response.candidates[0].content.parts[0].text;
+                    }
+
+                    showMarkdownOutput(markdown);
+
+                } catch (error) {
+                    console.error('Error during API call:', error);
+                    const errorMessage = `
+                        ### Analysis Failed
+                        An error occurred while analyzing the job posting. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
+                        Please check your API key and network connection, then try again.
+                        `;
+                    showMarkdownOutput(errorMessage);
+                }
+
+                return false;
             })
             .catch(error => {
                 console.error('Error processing selected text:', error);
-                // Fallback to a default message or API key input on error
-                showApiKeySection();
-                apiKeyMessage.textContent = 'An error occurred. Please try again.';
-                apiKeyMessage.style.color = 'red';
+                const errorMessage = `
+                        ### Analysis Failed
+                        An error occurred while analyzing the job posting. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
+                        Please check your API key and network connection, then try again.
+                        `;
+                showMarkdownOutput(errorMessage);
                 return false;
             });
 
-        return false;
+        return true;
     }
     return false;
 });
@@ -278,5 +380,5 @@ chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, 
 // Initialize the side panel when the script loads
 initializeSidePanel();
 
-// Inform the service worker that the side panel is ready (optional, but good for robust communication)
+// Inform the service worker that the side panel is ready
 chrome.runtime.sendMessage({ type: 'side-panel-ready' }).catch(error => console.log('Error sending side-panel-ready message:', error));

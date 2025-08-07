@@ -44,6 +44,14 @@ module.exports = {
                     from: 'src/showdown.min.js',
                     to: 'js/showdown.min.js'
                 },
+                {
+                    from: 'src/pdf.mjs',
+                    to: 'js/pdf.mjs'
+                },
+                {
+                    from: 'src/pdf.worker.mjs',
+                    to: 'js/pdf.worker.mjs'
+                },
                 // { from: 'options.html', to: './options.html' },
                 // Copy images to a subfolder in dist
                 { from: 'images', to: './images' },
