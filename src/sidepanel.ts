@@ -303,7 +303,7 @@ chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, 
                     Analyze the job description and provide a professional, structured analysis in Markdown format. The analysis should include the following sections:
 
                     ### Overall Fit
-                    Provide a concise summary of how well the user's profile fits the job description.
+                    Provide a concise summary of how well the user's profile fits the job description. Start it by giving a very visible "score" which should be one of: very poor fit, poor fit, moderate fit, good fit, very good fit, questionable fit. The questionable fit should be used only when there isn't enough information. Note that missing core skills for a job shouldn't be able to lead to more than a poor fit. Similar logic should apply for details like salary, location, industry etc, if the user has specified them of course. For the score - insert an HTML block and color the score from red to green so that it's very obvious to the user.
 
                     ### Strengths
                     List the key skills, experiences, and qualifications from the user's resume and additional details that match the job posting.
