@@ -5,20 +5,21 @@ const saveApiKeyBtn = document.getElementById('save-api-key-btn') as HTMLButtonE
 const apiKeyMessage = document.getElementById('api-key-message') as HTMLParagraphElement;
 
 const userDetailsSection = document.getElementById('user-details-section') as HTMLDivElement;
-const resumePathInput = document.getElementById('resume-path') as HTMLInputElement;
+const resumeFileInput = document.getElementById('resume-file') as HTMLInputElement;
 const additionalDetailsTextarea = document.getElementById('additional-details') as HTMLTextAreaElement;
 const saveUserDetailsBtn = document.getElementById('save-user-details-btn') as HTMLButtonElement;
 const userDetailsMessage = document.getElementById('user-details-message') as HTMLParagraphElement;
 
 const outputDisplay = document.getElementById('output-display') as HTMLDivElement;
 const displaySelectedText = document.getElementById('display-selected-text') as HTMLSpanElement;
-const displayResumePath = document.getElementById('display-resume-path') as HTMLSpanElement;
+const displayResumeFile = document.getElementById('display-resume-file') as HTMLSpanElement;
 const displayAdditionalDetails = document.getElementById('display-additional-details') as HTMLSpanElement;
 
 // Define interfaces for stored data
 interface UserSettings {
     googleApiKey?: string;
-    resumePath?: string;
+    resumeFileName?: string;
+    resumeFileContent?: string; // Storing the file content as a Base64 string
     additionalDetails?: string;
 }
 
@@ -50,7 +51,6 @@ function showUserDetailsSection(): void {
     // Load existing details if any
     chrome.storage.local.get(['userSettings'], (result: { userSettings?: UserSettings }) => {
         if (result.userSettings) {
-            resumePathInput.value = result.userSettings.resumePath || '';
             additionalDetailsTextarea.value = result.userSettings.additionalDetails || '';
         }
     });
@@ -59,13 +59,13 @@ function showUserDetailsSection(): void {
 /**
  * Shows the output display section with provided data.
  * @param selectedText The text selected by the user.
- * @param resumePath The saved resume path.
+ * @param resumeFileName The name of the saved resume file.
  * @param additionalDetails The saved additional details.
  */
-function showOutputDisplay(selectedText: string, resumePath: string, additionalDetails: string): void {
+function showOutputDisplay(selectedText: string, resumeFileName: string, additionalDetails: string): void {
     hideAllSections();
     displaySelectedText.textContent = selectedText || 'No text selected.';
-    displayResumePath.textContent = resumePath || 'Not provided.';
+    displayResumeFile.textContent = resumeFileName || 'Not provided.';
     displayAdditionalDetails.textContent = additionalDetails || 'Not provided.';
     outputDisplay.classList.remove('hidden');
 }
@@ -107,7 +107,7 @@ saveApiKeyBtn.addEventListener('click', async () => {
             apiKeyMessage.style.color = 'green';
             setTimeout(() => {
                 showUserDetailsSection(); // Move to next step
-            }, 1000);
+            }, 500);
         } catch (error) {
             console.error('Error saving API key:', error);
             apiKeyMessage.textContent = 'Failed to save API Key. Please try again.';
@@ -121,21 +121,31 @@ saveApiKeyBtn.addEventListener('click', async () => {
 
 // Event listener for saving user details
 saveUserDetailsBtn.addEventListener('click', async () => {
-    const resumePath = resumePathInput.value.trim();
+    const file = resumeFileInput.files && resumeFileInput.files.length > 0 ? resumeFileInput.files[0] : null;
     const additionalDetails = additionalDetailsTextarea.value.trim();
 
     try {
         // Retrieve existing settings to merge
         const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
         const userSettings = result.userSettings || {};
-        userSettings.resumePath = resumePath;
-        userSettings.additionalDetails = additionalDetails;
 
-        await chrome.storage.local.set({ userSettings });
-        userDetailsMessage.textContent = 'Details saved successfully!';
-        userDetailsMessage.style.color = 'green';
-        // No immediate section change here, as the user might want to adjust details.
-        // The display section will be shown on context menu click.
+        if (file) {
+            // Read the file content as a Base64 string
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                userSettings.resumeFileName = file.name;
+                userSettings.resumeFileContent = e.target?.result as string;
+                userSettings.additionalDetails = additionalDetails;
+
+                await chrome.storage.local.set({ userSettings });
+                userDetailsMessage.textContent = 'Details saved successfully!';
+                userDetailsMessage.style.color = 'green';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            userDetailsMessage.textContent = 'Resume is mandatory!';
+            userDetailsMessage.style.color = 'red';
+        }
     } catch (error) {
         console.error('Error saving user details:', error);
         userDetailsMessage.textContent = 'Failed to save details. Please try again.';
@@ -164,7 +174,7 @@ chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, 
                 // Display the selected text and stored user details
                 showOutputDisplay(
                     message.text,
-                    userSettings.resumePath || '',
+                    userSettings.resumeFileName || '',
                     userSettings.additionalDetails || ''
                 );
                 return true;
@@ -187,4 +197,4 @@ chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, 
 initializeSidePanel();
 
 // Inform the service worker that the side panel is ready (optional, but good for robust communication)
-chrome.runtime.sendMessage({ type: 'side-panel-ready' }).catch(error => console.error('Error sending side-panel-ready message:', error));
+chrome.runtime.sendMessage({ type: 'side-panel-ready' }).catch(error => console.log('Error sending side-panel-ready message:', error));

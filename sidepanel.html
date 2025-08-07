@@ -42,6 +42,9 @@
             border-radius: 4px;
             box-sizing: border-box; /* Ensures padding doesn't increase width */
         }
+        input[type="file"] {
+            margin-bottom: 15px;
+        }
         button {
             background-color: #3498db;
             color: white;
@@ -83,8 +86,8 @@
 <!-- Section for User Details Input -->
 <div id="user-details-section" class="section hidden">
     <p>Now, let's set up your profile:</p>
-    <label for="resume-path">Resume Path (e.g., C:\Users\YourName\Documents\resume.pdf):</label>
-    <input type="text" id="resume-path" placeholder="Path to your resume file">
+    <label for="resume-file">Upload your Resume (PDF or Word document):</label>
+    <input type="file" id="resume-file" accept=".pdf,.doc,.docx">
     <label for="additional-details">Additional Details (e.g., preferred roles, industries):</label>
     <textarea id="additional-details" rows="4" placeholder="Any other details you'd like to save"></textarea>
     <button id="save-user-details-btn">Save Details</button>
@@ -95,7 +98,7 @@
 <div id="output-display" class="section hidden">
     <h2>Analysis Result</h2>
     <p><strong>Selected Text:</strong> <span id="display-selected-text"></span></p>
-    <p><strong>Resume Path:</strong> <span id="display-resume-path"></span></p>
+    <p><strong>Resume File:</strong> <span id="display-resume-file"></span></p>
     <p><strong>Additional Info:</strong> <span id="display-additional-details"></span></p>
 </div>
 
