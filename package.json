@@ -1,5 +1,5 @@
 {
-  "name": "job-fit-ai-assistant",
+  "name": "ai-job-search-helper",
   "version": "1.0.0",
   "description": "Chrome extension to analyze job posting fit, tailor resumes, and draft cover letters using AI.",
   "main": "index.js",

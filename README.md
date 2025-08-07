@@ -1,6 +1,6 @@
-# **Job Fit AI Assistant**
+# **AI job search helper**
 
-The Job Fit AI Assistant is a Chrome extension designed to help you analyze job postings and tailor your resume and cover letters for a better fit. By leveraging a context menu, you can highlight a job posting on any webpage and instantly get a detailed analysis or generate customized application materials.
+The AI job search helper is a Chrome extension designed to help you analyze job postings and tailor your resume and cover letters for a better fit. By leveraging a context menu, you can highlight a job posting on any webpage and instantly get a detailed analysis or generate customized application materials.
 
 ## **Features**
 
@@ -18,8 +18,8 @@ The Job Fit AI Assistant is a Chrome extension designed to help you analyze job 
 ### **Installation**
 
 1. **Clone the repository:**  
-   git clone https://github.com/YourPersonalUsername/job-fit-ai-assistant.git  
-   cd job-fit-ai-assistant
+   git clone https://github.com/YourPersonalUsername/ai-job-search-helper.git  
+   cd ai-job-search-helper
 
    *(Replace YourPersonalUsername with your GitHub username)*  
 2. **Install dependencies:**  
@@ -35,7 +35,7 @@ The Job Fit AI Assistant is a Chrome extension designed to help you analyze job 
 1. Open Google Chrome and navigate to chrome://extensions.  
 2. Enable **Developer mode** by toggling the switch in the top-right corner.  
 3. Click on **"Load unpacked"**.  
-4. Select the job-fit-ai-assistant project folder.
+4. Select the ai-job-search-helper project folder.
 
 The extension is now installed and ready to use\!
 
