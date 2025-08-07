@@ -2,7 +2,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Job Fit AI Assistant Side Panel</title>
+    <title>AI job search helper Side Panel</title>
     <style>
         body {
             font-family: 'Inter', Arial, sans-serif;
@@ -52,6 +52,7 @@
             cursor: pointer;
             width: 100%;
             font-size: 16px;
+            margin-bottom: 10px; /* Added margin for spacing between buttons */
         }
         button:hover {
             background-color: #2980b9;
@@ -76,9 +77,6 @@
     </style>
 </head>
 <body>
-<h1>Job Fit AI Assistant</h1>
-<hr>
-
 <!-- Section for API Key Input -->
 <div id="api-key-section" class="section">
     <p>Please enter your GOOGLE_API_KEY to get started:</p>
@@ -114,6 +112,8 @@
 <!-- Section for the Markdown Output -->
 <div id="markdown-output-section" class="section hidden">
     <div id="markdown-content"></div>
+    <button id="tailor-resume-btn">Tailor Resume</button>
+    <button id="generate-cover-letter-btn">Generate Cover Letter</button>
 </div>
 
 <!-- Section for the Loading Spinner -->

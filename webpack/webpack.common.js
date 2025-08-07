@@ -52,6 +52,10 @@ module.exports = {
                     from: 'src/pdf.worker.mjs',
                     to: 'js/pdf.worker.mjs'
                 },
+                {
+                    from: 'output_format.txt',
+                    to: 'output_format.txt'
+                },
                 // { from: 'options.html', to: './options.html' },
                 // Copy images to a subfolder in dist
                 { from: 'images', to: './images' },

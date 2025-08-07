@@ -1,6 +1,6 @@
 // Get references to HTML elements
 import * as llamaindexGoogle from "@llamaindex/google";
-import { Document, Settings, VectorStoreIndex } from "llamaindex";
+import {Document, Settings, VectorStoreIndex} from "llamaindex";
 import * as pdfjs from "./pdf.mjs";
 
 const apiKeySection = document.getElementById('api-key-section') as HTMLDivElement;
@@ -21,12 +21,19 @@ const markdownContent = document.getElementById('markdown-content') as HTMLDivEl
 
 const loadingSpinnerSection = document.getElementById('loading-spinner-section') as HTMLDivElement;
 
+// New button elements
+const tailorResumeBtn = document.getElementById('tailor-resume-btn') as HTMLButtonElement;
+const generateCoverLetterBtn = document.getElementById('generate-cover-letter-btn') as HTMLButtonElement;
+
 // Initialize the Showdown converter
 const converter = new showdown.Converter();
 
 // Set the workerSrc for pdf.js to use the local worker file.
 pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
 
+// Global variable to store the VectorStoreIndex to avoid rebuilding it
+let globalIndex: VectorStoreIndex | null = null;
+let savedAdditionalDetails: string = '';
 
 // Define interfaces for stored data
 interface UserSettings {
@@ -34,7 +41,6 @@ interface UserSettings {
     resumeFileName?: string;
     resumeFileContent?: string;
     additionalDetails?: string;
-    documentId?: string;
 }
 
 /**
@@ -128,7 +134,7 @@ async function retryWithExponentialBackoff<T>(
  */
 async function getPdfText(file: File): Promise<string> {
     const arrayBuffer = await new Response(file).arrayBuffer();
-    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjs.getDocument({data: arrayBuffer}).promise;
     const numPages = pdf.numPages;
     let fullText = '';
     for (let i = 1; i <= numPages; i++) {
@@ -150,7 +156,7 @@ async function initializeSidePanel(): Promise<void> {
         const userSettings = result.userSettings || {};
 
         if (userSettings.googleApiKey) {
-            if (userSettings.resumeFileName && userSettings.additionalDetails) {
+            if (userSettings.resumeFileName) {
                 showInstructionDisplay();
             } else {
                 showUserDetailsSection();
@@ -174,7 +180,7 @@ saveApiKeyBtn.addEventListener('click', async () => {
             const userSettings = result.userSettings || {};
             userSettings.googleApiKey = apiKey;
 
-            await chrome.storage.local.set({ userSettings });
+            await chrome.storage.local.set({userSettings});
             apiKeyMessage.textContent = 'API Key saved successfully!';
             apiKeyMessage.style.color = 'green';
             setTimeout(() => {
@@ -190,6 +196,34 @@ saveApiKeyBtn.addEventListener('click', async () => {
         apiKeyMessage.style.color = 'red';
     }
 });
+
+async function readOutputFormatFile(filePath: string): Promise<string> {
+    try {
+        const response = await fetch(filePath);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.text();
+    } catch (error) {
+        console.error("Failed to read output_format.txt:", error);
+        return '';
+    }
+}
+
+async function create_index_from_data(fileContent: string, additionalDetails: string) {
+    const outputFormat = await readOutputFormatFile('/output_format.txt');
+
+    // Create Documents from the resume and additional details
+    const documents = [
+        new Document({text: fileContent, id_: 'resume'}),
+        new Document({text: additionalDetails, id_: 'additional_details'}),
+        new Document({text: outputFormat, id_: 'output_format'}),
+        // TODO: add the output_format file here as well
+    ];
+
+    // Build a VectorStoreIndex from the documents
+    return await VectorStoreIndex.fromDocuments(documents);
+}
 
 function saveUserDetailsListener() {
     return async () => {
@@ -222,10 +256,8 @@ function saveUserDetailsListener() {
                 let fileContent = '';
                 // Check file type and process accordingly
                 if (file.type === 'application/pdf') {
-                    console.log("Parsing a pdf file")
                     fileContent = await getPdfText(file);
                 } else if (file.type === 'text/plain') {
-                    console.log("Parsing a plain file")
                     fileContent = await new Promise((resolve, reject) => {
                         const reader = new FileReader();
                         reader.onload = (e) => resolve(e.target?.result as string);
@@ -238,19 +270,14 @@ function saveUserDetailsListener() {
                     return;
                 }
 
-                const documentId = crypto.randomUUID();
-                const documents = [new Document({ text: fileContent, id_: documentId })];
-
-                const index = await VectorStoreIndex.fromDocuments(documents);
-
-                console.log(`Successfully vectorized ${file.name} with ID: ${documentId}!`);
+                globalIndex = await create_index_from_data(fileContent, additionalDetails);
+                savedAdditionalDetails = additionalDetails;
 
                 userSettings.resumeFileName = file.name;
                 userSettings.resumeFileContent = fileContent;
                 userSettings.additionalDetails = additionalDetails;
-                userSettings.documentId = documentId;
 
-                await chrome.storage.local.set({ userSettings });
+                await chrome.storage.local.set({userSettings});
                 userDetailsMessage.textContent = 'Details and file vectorized successfully!';
                 userDetailsMessage.style.color = 'green';
                 setTimeout(() => {
@@ -271,14 +298,17 @@ function saveUserDetailsListener() {
 saveUserDetailsBtn.addEventListener('click', saveUserDetailsListener());
 
 // Listener for messages from the service worker (e.g., selected text)
-chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, sender: chrome.runtime.MessageSender, sendResponse: (response?: boolean) => void) => {
+chrome.runtime.onMessage.addListener((message: {
+    type: string;
+    text?: string
+}, sender: chrome.runtime.MessageSender, sendResponse: (response?: boolean) => void) => {
     if (message.type === 'selected-text' && message.text) {
         showLoadingSpinner();
 
         chrome.storage.local.get(['userSettings'])
             .then(async (result: { userSettings?: UserSettings }) => {
                 const userSettings = result.userSettings || {};
-                const { googleApiKey, resumeFileContent, additionalDetails } = userSettings;
+                const {googleApiKey, resumeFileContent} = userSettings;
                 const jobPostingText = message.text || '';
 
                 if (!googleApiKey || !resumeFileContent) {
@@ -288,69 +318,43 @@ chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, 
                     return false;
                 }
 
+                // If the index doesn't exist, create it from stored data
+                if (!globalIndex) {
+                    console.log("Global index not available for some reason")
+                    Settings.llm = llamaindexGoogle.gemini({
+                        apiKey: googleApiKey,
+                        model: llamaindexGoogle.GEMINI_MODEL.GEMINI_2_5_FLASH_PREVIEW,
+                    });
+                    Settings.embedModel = new llamaindexGoogle.GeminiEmbedding({
+                        apiKey: googleApiKey,
+                    });
+
+                    globalIndex = await create_index_from_data(resumeFileContent, userSettings.additionalDetails);
+                    savedAdditionalDetails = userSettings.additionalDetails || '';
+                }
+
+                // Create a query engine from the index
+                const queryEngine = globalIndex.asQueryEngine();
+
                 const prompt = `
-                    You are a professional career assistant. Your task is to analyze a job description against a user's resume and additional details.
-
-                    **Resume Content:**
-                    ${resumeFileContent}
-
-                    **Additional Details:**
-                    ${additionalDetails || 'No additional details provided.'}
+                    You are a professional career assistant. Your task is to analyze a job description against the provided context (resume, additional details and output format).
 
                     **Job Description:**
                     ${jobPostingText}
 
-                    Analyze the job description and provide a professional, structured analysis in Markdown format. The analysis should include the following sections:
-
-                    ### Overall Fit
-                    Provide a concise summary of how well the user's profile fits the job description. Start it by giving a very visible "score" which should be one of: very poor fit, poor fit, moderate fit, good fit, very good fit, questionable fit. The questionable fit should be used only when there isn't enough information. Note that missing core skills for a job shouldn't be able to lead to more than a poor fit. Similar logic should apply for details like salary, location, industry etc, if the user has specified them of course. For the score - insert an HTML block and color the score from red to green so that it's very obvious to the user.
-
-                    ### Strengths
-                    List the key skills, experiences, and qualifications from the user's resume and additional details that match the job posting.
-
-                    ### Areas for Improvement
-                    Identify any potential gaps or areas where the user's profile does not align with the job description. Mention specific skills, keywords, or experience levels.
-
-                    ### Actionable Advice
-                    Provide clear, actionable advice on how the user could tailor their resume or cover letter to better highlight their fit for this specific job.
-
-                    If the provided "Job Description" text is not a job description, return a simple markdown message that says: "### Not a Job Description Found \n The selected text does not appear to be a job description. Please select a job description and try again."
+                    Analyze the job description and provide a professional, structured analysis in Markdown format. format details are stored in the file called 'output_format'
+                    
+                    Note that the job description might not be in English and shouldn't be dismissed in that case!
                 `;
 
-                const payload = {
-                    contents: [{
-                        parts: [{ text: prompt }]
-                    }],
-                    generationConfig: {
-                        responseMimeType: "text/plain",
-                    }
-                };
-
-                const apiKey = userSettings.googleApiKey;
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-
                 try {
-                    const response = await retryWithExponentialBackoff(async () => {
-                        const res = await fetch(apiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        if (!res.ok) {
-                            throw new Error(`API error: ${res.statusText}`);
-                        }
-                        return res.json();
-                    });
+                    // Use the query engine to get a response from the model
+                    const response = await queryEngine.query({query: prompt});
 
-                    let markdown = "Analysis failed. Please try again.";
-                    if (response.candidates && response.candidates.length > 0 && response.candidates[0].content.parts.length > 0) {
-                        markdown = response.candidates[0].content.parts[0].text;
-                    }
-
-                    showMarkdownOutput(markdown);
+                    showMarkdownOutput(response.response);
 
                 } catch (error) {
-                    console.error('Error during API call:', error);
+                    console.error('Error during LlamaIndex query:', error);
                     const errorMessage = `
                         ### Analysis Failed
                         An error occurred while analyzing the job posting. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
@@ -377,8 +381,17 @@ chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, 
     return false;
 });
 
+// Event listeners for the new buttons
+tailorResumeBtn.addEventListener('click', () => {
+    console.log('Tailor Resume button clicked!');
+});
+
+generateCoverLetterBtn.addEventListener('click', () => {
+    console.log('Generate Cover Letter button clicked!');
+});
+
 // Initialize the side panel when the script loads
 initializeSidePanel();
 
 // Inform the service worker that the side panel is ready
-chrome.runtime.sendMessage({ type: 'side-panel-ready' }).catch(error => console.log('Error sending side-panel-ready message:', error));
+chrome.runtime.sendMessage({type: 'side-panel-ready'}).catch(error => console.log('Error sending side-panel-ready message:', error));
