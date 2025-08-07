@@ -60,6 +60,8 @@
     </style>
 </head>
 <body>
+<h1>Job Fit AI Assistant</h1>
+<hr>
 
 <!-- Section for API Key Input -->
 <div id="api-key-section" class="section">
@@ -79,6 +81,18 @@
     <textarea id="additional-details" rows="4" placeholder="Information like preferred roles, industries, locations, salary ranges..."></textarea>
     <button id="save-user-details-btn">Save Details</button>
     <p id="user-details-message" style="color: green; margin-top: 10px;"></p>
+</div>
+
+<!-- Section for instructions after saving data -->
+<div id="instruction-display" class="section hidden">
+    <p><strong>Success!</strong> Your resume has been vectorized. You're ready to go.</p>
+    <p>Now you can:</p>
+    <ol>
+        <li><strong>Select a text</strong> with a job description on any webpage.</li>
+        <li><strong>Right-click</strong> on the selected text.</li>
+        <li>Select <strong>"Analyze Job Posting Fit"</strong> from the menu.</li>
+    </ol>
+    <p>The analysis results will appear here.</p>
 </div>
 
 <!-- Section for Displaying Output -->

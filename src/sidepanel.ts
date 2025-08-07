@@ -1,6 +1,5 @@
 // Get references to HTML elements
-import {GeminiEmbedding} from "@llamaindex/google";
-import { gemini, GEMINI_MODEL } from "@llamaindex/google";
+import * as llamaindexGoogle from "@llamaindex/google";
 
 const apiKeySection = document.getElementById('api-key-section') as HTMLDivElement;
 const googleApiKeyInput = document.getElementById('google-api-key') as HTMLInputElement;
@@ -19,6 +18,9 @@ const displayResumeFile = document.getElementById('display-resume-file') as HTML
 const displayAdditionalDetails = document.getElementById('display-additional-details') as HTMLSpanElement;
 // New element to display the document ID
 const displayDocumentId = document.getElementById('display-document-id') as HTMLSpanElement;
+
+// New element for the instruction screen
+const instructionDisplay = document.getElementById('instruction-display') as HTMLDivElement;
 
 
 import {Document, Settings, VectorStoreIndex} from "llamaindex";
@@ -39,6 +41,7 @@ function hideAllSections(): void {
     apiKeySection.classList.add('hidden');
     userDetailsSection.classList.add('hidden');
     outputDisplay.classList.add('hidden');
+    instructionDisplay.classList.add('hidden'); // Hide the new instruction section
 }
 
 /**
@@ -66,6 +69,15 @@ function showUserDetailsSection(): void {
 }
 
 /**
+ * Shows the instructions after a successful setup.
+ */
+function showInstructionDisplay(): void {
+    hideAllSections();
+    instructionDisplay.classList.remove('hidden');
+}
+
+
+/**
  * Shows the output display section with provided data.
  * @param selectedText The text selected by the user.
  * @param resumeFileName The name of the saved resume file.
@@ -90,8 +102,14 @@ async function initializeSidePanel(): Promise<void> {
         const userSettings = result.userSettings || {};
 
         if (userSettings.googleApiKey) {
-            // If API key exists, show user details section
-            showUserDetailsSection();
+            // If API key exists, check if user details are saved
+            if (userSettings.resumeFileName && userSettings.additionalDetails) {
+                // If user details are saved, show the instructions
+                showInstructionDisplay();
+            } else {
+                // Otherwise, show the user details section
+                showUserDetailsSection();
+            }
         } else {
             // If API key doesn't exist, prompt for it
             showApiKeySection();
@@ -151,11 +169,11 @@ function saveUserDetailsListener() {
 
             // Set the llamaindex settings with the retrieved API key.
             // This must happen before any llamaindex operations.
-            Settings.llm = gemini({
+            Settings.llm = llamaindexGoogle.gemini({
                 apiKey: googleApiKey,
-                model: GEMINI_MODEL.GEMINI_2_0_FLASH,
+                model: llamaindexGoogle.GEMINI_MODEL.GEMINI_2_0_FLASH,
             });
-            Settings.embedModel = new GeminiEmbedding({
+            Settings.embedModel = new llamaindexGoogle.GeminiEmbedding({
                 apiKey: googleApiKey,
             });
 
@@ -171,8 +189,19 @@ function saveUserDetailsListener() {
                     // Create a new Document from the file content with the unique ID
                     const documents = [new Document({ text: fileContent, id_: documentId })];
 
+                    const originalWarn = console.warn;
+                    console.warn = (...args) => {
+                        const message = args[0];
+                        if (typeof message === 'string' && message.includes('LlamaCloud')) {
+                            return; // Suppress the specific warning
+                        }
+                        originalWarn.apply(console, args);
+                    };
+
                     // Load and index documents to create the vector store
                     const index = await VectorStoreIndex.fromDocuments(documents);
+
+                    console.warn = originalWarn;
 
                     console.log(`Successfully vectorized ${file.name} with ID: ${documentId}!`);
 
@@ -185,6 +214,9 @@ function saveUserDetailsListener() {
                     await chrome.storage.local.set({userSettings});
                     userDetailsMessage.textContent = 'Details and file vectorized successfully!';
                     userDetailsMessage.style.color = 'green';
+                    setTimeout(() => {
+                        showInstructionDisplay(); // Show the new instructions
+                    }, 500);
                 };
                 reader.readAsText(file); // Use readAsText for text-based files
             } else {
