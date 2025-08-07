@@ -20,6 +20,7 @@ const markdownOutputSection = document.getElementById('markdown-output-section')
 const markdownContent = document.getElementById('markdown-content') as HTMLDivElement;
 
 const loadingSpinnerSection = document.getElementById('loading-spinner-section') as HTMLDivElement;
+const loadingSpinnerTitle = document.getElementById('loading-spinner-title') as HTMLDivElement;
 
 // New button elements
 const tailorResumeBtn = document.getElementById('tailor-resume-btn') as HTMLButtonElement;
@@ -33,7 +34,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
 
 // Global variable to store the VectorStoreIndex to avoid rebuilding it
 let globalIndex: VectorStoreIndex | null = null;
-let savedAdditionalDetails: string = '';
+let jobPostingText: string | null = null;
 
 // Define interfaces for stored data
 interface UserSettings {
@@ -88,8 +89,9 @@ function showInstructionDisplay(): void {
 /**
  * Shows the loading spinner.
  */
-function showLoadingSpinner(): void {
+function showLoadingSpinner(text: string = "Processing..."): void {
     hideAllSections();
+    loadingSpinnerTitle.textContent = text;
     loadingSpinnerSection.classList.remove('hidden');
 }
 
@@ -99,8 +101,7 @@ function showLoadingSpinner(): void {
  */
 function showMarkdownOutput(markdown: string): void {
     hideAllSections();
-    const html = converter.makeHtml(markdown);
-    markdownContent.innerHTML = html;
+    markdownContent.innerHTML = converter.makeHtml(markdown);
     markdownOutputSection.classList.remove('hidden');
 }
 
@@ -211,14 +212,10 @@ async function readOutputFormatFile(filePath: string): Promise<string> {
 }
 
 async function create_index_from_data(fileContent: string, additionalDetails: string) {
-    const outputFormat = await readOutputFormatFile('/output_format.txt');
-
     // Create Documents from the resume and additional details
     const documents = [
         new Document({text: fileContent, id_: 'resume'}),
         new Document({text: additionalDetails, id_: 'additional_details'}),
-        new Document({text: outputFormat, id_: 'output_format'}),
-        // TODO: add the output_format file here as well
     ];
 
     // Build a VectorStoreIndex from the documents
@@ -271,7 +268,6 @@ function saveUserDetailsListener() {
                 }
 
                 globalIndex = await create_index_from_data(fileContent, additionalDetails);
-                savedAdditionalDetails = additionalDetails;
 
                 userSettings.resumeFileName = file.name;
                 userSettings.resumeFileContent = fileContent;
@@ -303,13 +299,13 @@ chrome.runtime.onMessage.addListener((message: {
     text?: string
 }, sender: chrome.runtime.MessageSender, sendResponse: (response?: boolean) => void) => {
     if (message.type === 'selected-text' && message.text) {
-        showLoadingSpinner();
+        showLoadingSpinner("Analyzing job posting...");
 
         chrome.storage.local.get(['userSettings'])
             .then(async (result: { userSettings?: UserSettings }) => {
                 const userSettings = result.userSettings || {};
                 const {googleApiKey, resumeFileContent} = userSettings;
-                const jobPostingText = message.text || '';
+                jobPostingText = message.text || '';
 
                 if (!googleApiKey || !resumeFileContent) {
                     showApiKeySection();
@@ -330,19 +326,34 @@ chrome.runtime.onMessage.addListener((message: {
                     });
 
                     globalIndex = await create_index_from_data(resumeFileContent, userSettings.additionalDetails);
-                    savedAdditionalDetails = userSettings.additionalDetails || '';
                 }
 
                 // Create a query engine from the index
                 const queryEngine = globalIndex.asQueryEngine();
 
+                // TODO: Figure out a way to index the output format as well
                 const prompt = `
                     You are a professional career assistant. Your task is to analyze a job description against the provided context (resume, additional details and output format).
 
                     **Job Description:**
                     ${jobPostingText}
 
-                    Analyze the job description and provide a professional, structured analysis in Markdown format. format details are stored in the file called 'output_format'
+                    Analyze the job description and provide a professional, structured analysis in Markdown format as follows:
+                    
+                    ### Overall Fit
+                    Provides a concise summary of how well the user's profile fits the job description. Start it by giving a very visible "score" which should be one of: very poor fit, poor fit, moderate fit, good fit, very good fit, questionable fit. The questionable fit should be used only when there isn't enough information. Note that missing core skills for a job shouldn't be able to lead to more than a poor fit. Similar logic should apply for details like salary, location, industry etc, if the user has specified them of course. For the score - insert an HTML block like this: <span style="color:red">*red* fit score</span>. and color the score from red to green so that it's very obvious to the user.
+                    
+                    ### Strengths
+                    Lists the key skills, experiences, and qualifications from the context that match the job posting.
+                    
+                    ### Areas for Improvement
+                    Identifies any potential gaps or areas where the user's profile does not align with the job description. Mention specific skills, keywords, or experience levels.
+                    
+                    ### Actionable Advice
+                    Provides clear, actionable advice on how the user could tailor their resume or cover letter to better highlight their fit for this specific job.
+                    
+                    If the provided "Job Description" text is not a job description, return a simple markdown message that says: "### Not a Job Description Found
+                     The selected text does not appear to be a job description. Please select a job description and try again."
                     
                     Note that the job description might not be in English and shouldn't be dismissed in that case!
                 `;
@@ -355,24 +366,23 @@ chrome.runtime.onMessage.addListener((message: {
 
                 } catch (error) {
                     console.error('Error during LlamaIndex query:', error);
-                    const errorMessage = `
-                        ### Analysis Failed
-                        An error occurred while analyzing the job posting. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
-                        Please check your API key and network connection, then try again.
-                        `;
+                    const errorMessage = `### Analysis Failed
+An error occurred while analyzing the job posting. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
+Please check your API key and network connection, then try again.`;
                     showMarkdownOutput(errorMessage);
+
                 }
 
                 return false;
             })
             .catch(error => {
                 console.error('Error processing selected text:', error);
-                const errorMessage = `
-                        ### Analysis Failed
-                        An error occurred while analyzing the job posting. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
-                        Please check your API key and network connection, then try again.
-                        `;
+                const errorMessage = `### Analysis Failed
+An error occurred while analyzing the job posting. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
+Please check your API key and network connection, then try again.`;
                 showMarkdownOutput(errorMessage);
+                tailorResumeBtn.hidden = true;
+                generateCoverLetterBtn.hidden = true;
                 return false;
             });
 
@@ -387,7 +397,109 @@ tailorResumeBtn.addEventListener('click', () => {
 });
 
 generateCoverLetterBtn.addEventListener('click', () => {
-    console.log('Generate Cover Letter button clicked!');
+    console.log('Generate Cover Letter button clicked!!');
+    showLoadingSpinner("Generating a Cover Letter");
+
+    chrome.storage.local.get(['userSettings'])
+        .then(async (result: { userSettings?: UserSettings }) => {
+            const userSettings = result.userSettings || {};
+            const {googleApiKey, resumeFileContent} = userSettings;
+
+            if (!googleApiKey || !resumeFileContent) {
+                showApiKeySection();
+                apiKeyMessage.textContent = 'Please provide your API key and upload a resume to proceed.';
+                apiKeyMessage.style.color = 'red';
+                return false;
+            }
+
+            // If the index doesn't exist, create it from stored data
+            if (!globalIndex) {
+                console.log("Global index not available for some reason")
+                Settings.llm = llamaindexGoogle.gemini({
+                    apiKey: googleApiKey,
+                    model: llamaindexGoogle.GEMINI_MODEL.GEMINI_2_5_FLASH_PREVIEW,
+                });
+                Settings.embedModel = new llamaindexGoogle.GeminiEmbedding({
+                    apiKey: googleApiKey,
+                });
+
+                globalIndex = await create_index_from_data(resumeFileContent, userSettings.additionalDetails);
+            }
+
+            // todo: add error handling to company name fetching
+
+            const llm = llamaindexGoogle.gemini({
+                apiKey: googleApiKey,
+                model: llamaindexGoogle.GEMINI_MODEL.GEMINI_2_5_FLASH_PREVIEW,
+            });
+
+            let prompt = `
+            Based on this job description:
+                ${jobPostingText}
+            
+            what is the name of the company? Return just the name and nothing else
+            `
+
+            let companyName = (await llm.complete({prompt: prompt})).text
+
+            console.log(companyName)
+
+            // Create a query engine from the index
+            const queryEngine = globalIndex.asQueryEngine();
+
+            prompt = `
+                You are a professional career assistant. Your task is to generate a cover letter that will 
+                help the user apply for the job based on the job description, the users resume and their 
+                additional details provided. 
+
+                **Company Name:**
+                ${companyName}
+
+                **Job Description:**
+                ${jobPostingText}
+
+                Some general guidelines: make it at most 3-4 paragraphs long, address their strengths and in 
+                case that there are any missing skills, address those head on based on the users other skills 
+                (ie stuff like quick learning, hard-working, commitment to excellence etc). Make sure to 
+                reference the details from the job post as much as possible. The start of the output should be 
+                a line in the format:
+                // [users_name_and_last_name]_cover_letter_{company_name}.txt
+                
+                Note that the job description might not be in English and shouldn't be dismissed in that case!
+            `;
+
+            try {
+                // Use the query engine to get a response from the model
+                const response = await queryEngine.query({query: prompt});
+
+                showMarkdownOutput(response.response);
+                tailorResumeBtn.hidden = true;
+                generateCoverLetterBtn.hidden = true;
+
+            } catch (error) {
+                console.error('Error during LlamaIndex query:', error);
+                const errorMessage = `### Cover letter generation Failed
+An error occurred while generating cover letter. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
+Please check your API key and network connection, then try again.`;
+                showMarkdownOutput(errorMessage);
+                tailorResumeBtn.hidden = true;
+                generateCoverLetterBtn.hidden = true;
+            }
+
+            return false;
+        })
+        .catch(error => {
+            console.error('Error generating cover letter:', error);
+            const errorMessage = `### Cover letter generation Failed
+An error occurred while generating cover letter. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
+Please check your API key and network connection, then try again.`;
+            showMarkdownOutput(errorMessage);
+            tailorResumeBtn.hidden = true;
+            generateCoverLetterBtn.hidden = true;
+            return false;
+        });
+
+    return true;
 });
 
 // Initialize the side panel when the script loads

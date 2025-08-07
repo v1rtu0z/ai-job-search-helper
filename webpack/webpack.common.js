@@ -56,6 +56,10 @@ module.exports = {
                     from: 'output_format.txt',
                     to: 'output_format.txt'
                 },
+                {
+                    from: 'cover_letter_prompt.txt',
+                    to: 'cover_letter_prompt.txt'
+                },
                 // { from: 'options.html', to: './options.html' },
                 // Copy images to a subfolder in dist
                 { from: 'images', to: './images' },
