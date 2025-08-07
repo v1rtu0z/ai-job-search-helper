@@ -1,4 +1,7 @@
 // Get references to HTML elements
+import {GeminiEmbedding} from "@llamaindex/google";
+import { gemini, GEMINI_MODEL } from "@llamaindex/google";
+
 const apiKeySection = document.getElementById('api-key-section') as HTMLDivElement;
 const googleApiKeyInput = document.getElementById('google-api-key') as HTMLInputElement;
 const saveApiKeyBtn = document.getElementById('save-api-key-btn') as HTMLButtonElement;
@@ -14,6 +17,11 @@ const outputDisplay = document.getElementById('output-display') as HTMLDivElemen
 const displaySelectedText = document.getElementById('display-selected-text') as HTMLSpanElement;
 const displayResumeFile = document.getElementById('display-resume-file') as HTMLSpanElement;
 const displayAdditionalDetails = document.getElementById('display-additional-details') as HTMLSpanElement;
+// New element to display the document ID
+const displayDocumentId = document.getElementById('display-document-id') as HTMLSpanElement;
+
+
+import {Document, Settings, VectorStoreIndex} from "llamaindex";
 
 // Define interfaces for stored data
 interface UserSettings {
@@ -21,6 +29,7 @@ interface UserSettings {
     resumeFileName?: string;
     resumeFileContent?: string; // Storing the file content as a Base64 string
     additionalDetails?: string;
+    documentId?: string; // New field to store the unique document ID
 }
 
 /**
@@ -61,12 +70,14 @@ function showUserDetailsSection(): void {
  * @param selectedText The text selected by the user.
  * @param resumeFileName The name of the saved resume file.
  * @param additionalDetails The saved additional details.
+ * @param documentId The unique ID of the vectorized document.
  */
-function showOutputDisplay(selectedText: string, resumeFileName: string, additionalDetails: string): void {
+function showOutputDisplay(selectedText: string, resumeFileName: string, additionalDetails: string, documentId: string): void {
     hideAllSections();
     displaySelectedText.textContent = selectedText || 'No text selected.';
     displayResumeFile.textContent = resumeFileName || 'Not provided.';
     displayAdditionalDetails.textContent = additionalDetails || 'Not provided.';
+    displayDocumentId.textContent = documentId || 'Not available.'; // Set the new span's text
     outputDisplay.classList.remove('hidden');
 }
 
@@ -119,39 +130,77 @@ saveApiKeyBtn.addEventListener('click', async () => {
     }
 });
 
-// Event listener for saving user details
-saveUserDetailsBtn.addEventListener('click', async () => {
-    const file = resumeFileInput.files && resumeFileInput.files.length > 0 ? resumeFileInput.files[0] : null;
-    const additionalDetails = additionalDetailsTextarea.value.trim();
+function saveUserDetailsListener() {
+    return async () => {
+        const file = resumeFileInput.files && resumeFileInput.files.length > 0 ? resumeFileInput.files[0] : null;
+        const additionalDetails = additionalDetailsTextarea.value.trim();
 
-    try {
-        // Retrieve existing settings to merge
-        const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
-        const userSettings = result.userSettings || {};
+        try {
+            userDetailsMessage.textContent = 'Saving and vectorizing file...';
+            userDetailsMessage.style.color = 'blue';
 
-        if (file) {
-            // Read the file content as a Base64 string
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                userSettings.resumeFileName = file.name;
-                userSettings.resumeFileContent = e.target?.result as string;
-                userSettings.additionalDetails = additionalDetails;
+            const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
+            const userSettings = result.userSettings || {};
+            const googleApiKey = userSettings.googleApiKey;
 
-                await chrome.storage.local.set({ userSettings });
-                userDetailsMessage.textContent = 'Details saved successfully!';
-                userDetailsMessage.style.color = 'green';
-            };
-            reader.readAsDataURL(file);
-        } else {
-            userDetailsMessage.textContent = 'Resume is mandatory!';
+            if (!googleApiKey) {
+                userDetailsMessage.textContent = 'API Key not found. Please provide it in the previous step.';
+                userDetailsMessage.style.color = 'red';
+                return;
+            }
+
+            // Set the llamaindex settings with the retrieved API key.
+            // This must happen before any llamaindex operations.
+            Settings.llm = gemini({
+                apiKey: googleApiKey,
+                model: GEMINI_MODEL.GEMINI_2_0_FLASH,
+            });
+            Settings.embedModel = new GeminiEmbedding({
+                apiKey: googleApiKey,
+            });
+
+
+            if (file) {
+                // Read the file content as a string
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const fileContent = e.target?.result as string;
+                    // Generate a unique ID for the document
+                    const documentId = crypto.randomUUID();
+
+                    // Create a new Document from the file content with the unique ID
+                    const documents = [new Document({ text: fileContent, id_: documentId })];
+
+                    // Load and index documents to create the vector store
+                    const index = await VectorStoreIndex.fromDocuments(documents);
+
+                    console.log(`Successfully vectorized ${file.name} with ID: ${documentId}!`);
+
+                    // Now save the details to local storage
+                    userSettings.resumeFileName = file.name;
+                    userSettings.resumeFileContent = fileContent;
+                    userSettings.additionalDetails = additionalDetails;
+                    userSettings.documentId = documentId; // Save the unique ID
+
+                    await chrome.storage.local.set({userSettings});
+                    userDetailsMessage.textContent = 'Details and file vectorized successfully!';
+                    userDetailsMessage.style.color = 'green';
+                };
+                reader.readAsText(file); // Use readAsText for text-based files
+            } else {
+                userDetailsMessage.textContent = 'Resume is mandatory!';
+                userDetailsMessage.style.color = 'red';
+            }
+        } catch (error) {
+            console.error('Error saving user details:', error);
+            userDetailsMessage.textContent = 'Failed to save details. Please try again.';
             userDetailsMessage.style.color = 'red';
         }
-    } catch (error) {
-        console.error('Error saving user details:', error);
-        userDetailsMessage.textContent = 'Failed to save details. Please try again.';
-        userDetailsMessage.style.color = 'red';
-    }
-});
+    };
+}
+
+// Event listener for saving user details
+saveUserDetailsBtn.addEventListener('click', saveUserDetailsListener());
 
 // Listener for messages from the service worker (e.g., selected text)
 chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, sender: chrome.runtime.MessageSender, sendResponse: () => void) => {
@@ -171,11 +220,12 @@ chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, 
                     return false; // Exit early from this .then() block
                 }
 
-                // Display the selected text and stored user details
+                // Display the selected text and stored user details, including the new document ID
                 showOutputDisplay(
                     message.text,
                     userSettings.resumeFileName || '',
-                    userSettings.additionalDetails || ''
+                    userSettings.additionalDetails || '',
+                    userSettings.documentId || ''
                 );
                 return true;
             })

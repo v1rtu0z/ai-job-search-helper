@@ -2,7 +2,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI job search helper Side Panel</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -40,20 +39,17 @@
             margin-bottom: 15px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            box-sizing: border-box; /* Ensures padding doesn't increase width */
-        }
-        input[type="file"] {
-            margin-bottom: 15px;
+            box-sizing: border-box; /* Ensures padding doesn't affect width */
         }
         button {
             background-color: #3498db;
             color: white;
-            padding: 10px 15px;
+            padding: 12px 20px;
             border: none;
-            border-radius: 5px;
+            border-radius: 4px;
             cursor: pointer;
+            width: 100%;
             font-size: 16px;
-            transition: background-color 0.2s ease;
         }
         button:hover {
             background-color: #2980b9;
@@ -61,18 +57,9 @@
         .hidden {
             display: none;
         }
-        #output-display p {
-            margin-bottom: 8px;
-            word-wrap: break-word; /* Ensures long text wraps */
-        }
-        #output-display strong {
-            color: #555;
-        }
     </style>
 </head>
 <body>
-<h1>AI job search helper</h1>
-<hr />
 
 <!-- Section for API Key Input -->
 <div id="api-key-section" class="section">
@@ -85,11 +72,11 @@
 
 <!-- Section for User Details Input -->
 <div id="user-details-section" class="section hidden">
-    <p>Now, let's set up your profile:</p>
-    <label for="resume-file">Upload your Resume (PDF or Word document):</label>
-    <input type="file" id="resume-file" accept=".pdf,.doc,.docx">
-    <label for="additional-details">Additional Details (e.g., preferred roles, industries):</label>
-    <textarea id="additional-details" rows="4" placeholder="Any other details you'd like to save"></textarea>
+    <p>Let the AI know a bit about you:</p>
+    <label for="resume-file">Upload your Resume (PDF or TXT):</label>
+    <input type="file" id="resume-file" accept=".pdf,.txt">
+    <label for="additional-details">Additional Details:</label>
+    <textarea id="additional-details" rows="4" placeholder="Information like preferred roles, industries, locations, salary ranges..."></textarea>
     <button id="save-user-details-btn">Save Details</button>
     <p id="user-details-message" style="color: green; margin-top: 10px;"></p>
 </div>
@@ -99,7 +86,9 @@
     <h2>Analysis Result</h2>
     <p><strong>Selected Text:</strong> <span id="display-selected-text"></span></p>
     <p><strong>Resume File:</strong> <span id="display-resume-file"></span></p>
-    <p><strong>Additional Info:</strong> <span id="display-additional-details"></span></p>
+    <!-- New line for the vectorized document ID -->
+    <p><strong>Vector Document ID:</strong> <span id="display-document-id"></span></p>
+    <p><strong>Additional Details:</strong> <span id="display-additional-details"></span></p>
 </div>
 
 <script src="js/sidepanel.js"></script>
