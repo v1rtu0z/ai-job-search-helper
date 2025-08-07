@@ -11,8 +11,6 @@
     // You might also need this if 'types' array is present but not picking up node_modules/@types
     "typeRoots": [
       "./node_modules/@types",
-//      "./node_modules/chrome-types",
-//      "./src/types" // <--- ENSURE THIS IS INCLUDED IF YOU PUT chrome.d.ts in src/types
     ]
   },
   "include": [

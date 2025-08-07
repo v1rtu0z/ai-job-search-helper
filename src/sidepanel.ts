@@ -1,118 +1,190 @@
-// Define a type for the expected message structure from the service worker
-interface AnalysisResult {
-    overallFitScore: number;
-    matchSummary: string;
-    keyMatches: string[];
-    potentialGaps: string[];
-    recommendedAction: string;
+// Get references to HTML elements
+const apiKeySection = document.getElementById('api-key-section') as HTMLDivElement;
+const googleApiKeyInput = document.getElementById('google-api-key') as HTMLInputElement;
+const saveApiKeyBtn = document.getElementById('save-api-key-btn') as HTMLButtonElement;
+const apiKeyMessage = document.getElementById('api-key-message') as HTMLParagraphElement;
+
+const userDetailsSection = document.getElementById('user-details-section') as HTMLDivElement;
+const resumePathInput = document.getElementById('resume-path') as HTMLInputElement;
+const additionalDetailsTextarea = document.getElementById('additional-details') as HTMLTextAreaElement;
+const saveUserDetailsBtn = document.getElementById('save-user-details-btn') as HTMLButtonElement;
+const userDetailsMessage = document.getElementById('user-details-message') as HTMLParagraphElement;
+
+const outputDisplay = document.getElementById('output-display') as HTMLDivElement;
+const displaySelectedText = document.getElementById('display-selected-text') as HTMLSpanElement;
+const displayResumePath = document.getElementById('display-resume-path') as HTMLSpanElement;
+const displayAdditionalDetails = document.getElementById('display-additional-details') as HTMLSpanElement;
+
+// Define interfaces for stored data
+interface UserSettings {
+    googleApiKey?: string;
+    resumePath?: string;
+    additionalDetails?: string;
 }
 
-// Define a type for the changes object from chrome.storage.session.onChanged
-interface StorageChanges {
-    lastSelectedText?: chrome.storage.StorageChange;
-    lastAnalysisResult?: chrome.storage.StorageChange; // Added this for completeness
-    // Add other storage keys if your extension uses them
+/**
+ * Hides all main sections of the side panel.
+ */
+function hideAllSections(): void {
+    apiKeySection.classList.add('hidden');
+    userDetailsSection.classList.add('hidden');
+    outputDisplay.classList.add('hidden');
 }
 
-// Function to update the UI with analysis results
-function updateAnalysisResult(result: AnalysisResult | null): void {
-    const analysisOutput = document.body.querySelector<HTMLDivElement>('#analysis-output');
-    const instructions = document.body.querySelector<HTMLDivElement>('#instructions');
+/**
+ * Shows the API key input section.
+ */
+function showApiKeySection(): void {
+    hideAllSections();
+    apiKeySection.classList.remove('hidden');
+    apiKeyMessage.textContent = ''; // Clear previous messages
+}
 
-    if (!analysisOutput || !instructions) {
-        console.error('Required DOM elements not found.');
-        return;
+/**
+ * Shows the user details input section.
+ */
+function showUserDetailsSection(): void {
+    hideAllSections();
+    userDetailsSection.classList.remove('hidden');
+    userDetailsMessage.textContent = ''; // Clear previous messages
+    // Load existing details if any
+    chrome.storage.local.get(['userSettings'], (result: { userSettings?: UserSettings }) => {
+        if (result.userSettings) {
+            resumePathInput.value = result.userSettings.resumePath || '';
+            additionalDetailsTextarea.value = result.userSettings.additionalDetails || '';
+        }
+    });
+}
+
+/**
+ * Shows the output display section with provided data.
+ * @param selectedText The text selected by the user.
+ * @param resumePath The saved resume path.
+ * @param additionalDetails The saved additional details.
+ */
+function showOutputDisplay(selectedText: string, resumePath: string, additionalDetails: string): void {
+    hideAllSections();
+    displaySelectedText.textContent = selectedText || 'No text selected.';
+    displayResumePath.textContent = resumePath || 'Not provided.';
+    displayAdditionalDetails.textContent = additionalDetails || 'Not provided.';
+    outputDisplay.classList.remove('hidden');
+}
+
+/**
+ * Initializes the side panel by checking for the API key and showing the appropriate section.
+ */
+async function initializeSidePanel(): Promise<void> {
+    try {
+        const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
+        const userSettings = result.userSettings || {};
+
+        if (userSettings.googleApiKey) {
+            // If API key exists, show user details section
+            showUserDetailsSection();
+        } else {
+            // If API key doesn't exist, prompt for it
+            showApiKeySection();
+        }
+    } catch (error) {
+        console.error('Error initializing side panel:', error);
+        apiKeyMessage.textContent = 'Error loading settings. Please try again.';
+        showApiKeySection(); // Fallback to API key input on error
     }
+}
 
-    if (result) {
-        // Hide instructions and show results
-        instructions.style.display = 'none';
-        analysisOutput.style.display = 'block';
+// Event listener for saving the API key
+saveApiKeyBtn.addEventListener('click', async () => {
+    const apiKey = googleApiKeyInput.value.trim();
+    if (apiKey) {
+        try {
+            // Retrieve existing settings to merge
+            const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
+            const userSettings = result.userSettings || {};
+            userSettings.googleApiKey = apiKey;
 
-        analysisOutput.innerHTML = `
-      <h2 class="text-lg font-semibold mb-2">Fit Score: ${result.overallFitScore}%</h2>
-      <p class="mb-2">${result.matchSummary}</p>
-      <h3 class="font-medium mt-4 mb-1">Key Matches:</h3>
-      <ul class="list-disc list-inside">
-        ${result.keyMatches.map(match => `<li>${match}</li>`).join('')}
-      </ul>
-      <h3 class="font-medium mt-4 mb-1">Potential Gaps:</h3>
-      <ul class="list-disc list-inside">
-        ${result.potentialGaps.map(gap => `<li>${gap}</li>`).join('')}
-      </ul>
-      <h3 class="font-medium mt-4 mb-1">Recommended Action:</h3>
-      <p>${result.recommendedAction}</p>
-    `;
+            await chrome.storage.local.set({ userSettings });
+            apiKeyMessage.textContent = 'API Key saved successfully!';
+            apiKeyMessage.style.color = 'green';
+            setTimeout(() => {
+                showUserDetailsSection(); // Move to next step
+            }, 1000);
+        } catch (error) {
+            console.error('Error saving API key:', error);
+            apiKeyMessage.textContent = 'Failed to save API Key. Please try again.';
+            apiKeyMessage.style.color = 'red';
+        }
     } else {
-        // Show instructions if no result
-        instructions.style.display = 'block';
-        analysisOutput.style.display = 'none';
-        instructions.innerText = 'Select text on a job posting and right-click to analyze!';
+        apiKeyMessage.textContent = 'API Key cannot be empty.';
+        apiKeyMessage.style.color = 'red';
     }
-}
+});
 
-// Listen for messages from the background script
-chrome.runtime.onMessage.addListener((message: { type: string; payload?: AnalysisResult | string }, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-    if (message.type === 'JOB_FIT_ANALYSIS_RESULT' && message.payload && typeof message.payload !== 'string') {
-        updateAnalysisResult(message.payload);
-    } else if (message.type === 'CLEAR_ANALYSIS_RESULT') {
-        updateAnalysisResult(null); // Clear results and show instructions
-    } else if (message.type === 'SELECTED_TEXT_RESPONSE' && typeof message.payload === 'string') {
-        // If the content script sends the selected text back
-        const selectedText = message.payload;
-        const resultsDiv = document.getElementById('results'); // Re-get resultsDiv
-        if (resultsDiv) {
-            resultsDiv.textContent = `Selected Text Received: ${selectedText.substring(0, 50)}...`;
-            // Now send this to the background for LLM processing
-            // This message should ideally be handled by the background script, not sent back from sidepanel
-            // For this example, we'll just log it.
-            console.log('Sidepanel received selected text:', selectedText);
-        }
-    } else if (message.type === 'ANALYZE_TEXT_FROM_CONTEXT_MENU' && typeof message.payload === 'string') {
-        // Handle text directly from context menu if side panel was opened this way
-        const selectedText = message.payload;
-        const resultsDiv = document.getElementById('results'); // Re-get resultsDiv
-        if (resultsDiv) {
-            resultsDiv.textContent = `Analyzing text from context menu: ${selectedText.substring(0, 50)}...`;
-            // This message should ideally be handled by the background script, not sent back from sidepanel
-            // For this example, we'll just log it.
-            console.log('Sidepanel received context menu text:', selectedText);
-        }
+// Event listener for saving user details
+saveUserDetailsBtn.addEventListener('click', async () => {
+    const resumePath = resumePathInput.value.trim();
+    const additionalDetails = additionalDetailsTextarea.value.trim();
+
+    try {
+        // Retrieve existing settings to merge
+        const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
+        const userSettings = result.userSettings || {};
+        userSettings.resumePath = resumePath;
+        userSettings.additionalDetails = additionalDetails;
+
+        await chrome.storage.local.set({ userSettings });
+        userDetailsMessage.textContent = 'Details saved successfully!';
+        userDetailsMessage.style.color = 'green';
+        // No immediate section change here, as the user might want to adjust details.
+        // The display section will be shown on context menu click.
+    } catch (error) {
+        console.error('Error saving user details:', error);
+        userDetailsMessage.textContent = 'Failed to save details. Please try again.';
+        userDetailsMessage.style.color = 'red';
     }
-    // Important: Return false if you are not calling sendResponse asynchronously.
-    // This tells Chrome that you are not expecting to send a response later.
+});
+
+// Listener for messages from the service worker (e.g., selected text)
+chrome.runtime.onMessage.addListener((message: { type: string; text?: string }, sender: chrome.runtime.MessageSender, sendResponse: () => void) => {
+    if (message.type === 'selected-text' && message.text) {
+        // Perform async operations using .then() and .catch()
+        chrome.storage.local.get(['userSettings'])
+            .then((result: { userSettings?: UserSettings }) => {
+                const userSettings = result.userSettings || {};
+
+                // Ensure API key is present before showing analysis
+                if (!userSettings.googleApiKey) {
+                    console.warn('API Key not set. Cannot display analysis without it.');
+                    showApiKeySection(); // Redirect to API key input if missing
+                    apiKeyMessage.textContent = 'Please provide your API key to proceed.';
+                    apiKeyMessage.style.color = 'red';
+                    // No need to return true here, as the outer function will handle it.
+                    return false; // Exit early from this .then() block
+                }
+
+                // Display the selected text and stored user details
+                showOutputDisplay(
+                    message.text,
+                    userSettings.resumePath || '',
+                    userSettings.additionalDetails || ''
+                );
+                return true;
+            })
+            .catch(error => {
+                console.error('Error processing selected text:', error);
+                // Fallback to a default message or API key input on error
+                showApiKeySection();
+                apiKeyMessage.textContent = 'An error occurred. Please try again.';
+                apiKeyMessage.style.color = 'red';
+                return false;
+            });
+
+        return false;
+    }
     return false;
 });
 
-// On load, try to get the last analysis result (if stored) or show instructions
-chrome.storage.session.get('lastAnalysisResult', ({ lastAnalysisResult }) => {
-    if (lastAnalysisResult) {
-        updateAnalysisResult(lastAnalysisResult as AnalysisResult);
-    } else {
-        updateAnalysisResult(null);
-    }
-});
+// Initialize the side panel when the script loads
+initializeSidePanel();
 
-// Listen for changes in session storage (e.g., if background script updates it)
-chrome.storage.session.onChanged.addListener((changes: StorageChanges) => {
-    const lastAnalysisResultChange = changes['lastAnalysisResult'];
-
-    if (lastAnalysisResultChange) {
-        updateAnalysisResult(lastAnalysisResultChange.newValue as AnalysisResult);
-    }
-});
-
-// Initial setup for the side panel UI (assuming sidepanel.html has these IDs)
-document.addEventListener('DOMContentLoaded', () => {
-    // You might want to add event listeners for resume upload or preferences here
-    const uploadResumeButton = document.body.querySelector<HTMLButtonElement>('#upload-resume-button');
-    if (uploadResumeButton) {
-        uploadResumeButton.addEventListener('click', () => {
-            // Logic to open file picker or text area for resume
-            alert('Resume upload functionality coming soon!'); // Replace with actual UI
-        });
-    }
-
-    // Ensure initial state is correct
-    updateAnalysisResult(null);
-});
+// Inform the service worker that the side panel is ready (optional, but good for robust communication)
+chrome.runtime.sendMessage({ type: 'side-panel-ready' }).catch(error => console.error('Error sending side-panel-ready message:', error));

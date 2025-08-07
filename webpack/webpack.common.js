@@ -6,7 +6,7 @@ module.exports = {
     entry: {
         service_worker: path.resolve(__dirname, '..', 'src', 'service-worker.ts'),
         sidepanel: path.resolve(__dirname, '..', 'src', 'sidepanel.ts'),
-        content_script: path.resolve(__dirname, '..', 'src', 'content-script.ts'), // Assuming you have this file
+        // content_script: path.resolve(__dirname, '..', 'src', 'content-script.ts'), // Assuming you have this file
         // options: path.resolve(__dirname, '..', 'src', 'options.ts'), // For options.html
     },
     // Output settings for bundled JavaScript files
@@ -36,6 +36,14 @@ module.exports = {
                 { from: 'manifest.json', to: './manifest.json' },
                 // Copy your HTML files to the root of the dist folder
                 { from: 'sidepanel.html', to: './sidepanel.html' },
+                {
+                    from: 'src/showdown.js',
+                    to: 'js/showdown.js'
+                },
+                {
+                    from: 'src/showdown.min.js',
+                    to: 'js/showdown.min.js'
+                },
                 // { from: 'options.html', to: './options.html' },
                 // Copy images to a subfolder in dist
                 { from: 'images', to: './images' },

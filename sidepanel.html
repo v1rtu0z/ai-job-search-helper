@@ -1,15 +1,104 @@
-<html>
-  <head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Job Fit AI Assistant Side Panel</title>
-  </head>
-  <body>
-    <h1>Job Fit AI Assistant</h1>
-    <hr />
-    <p id="select-a-word">Attach your resume.</p>
-    <div>
-      <h2 id="definition-word"></h2>
-      <p id="definition-text"></p>
-    </div>
-    <script src="src/sidepanel.ts"></script>
-  </body>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 15px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        hr {
+            border: 0;
+            height: 1px;
+            background-color: #ccc;
+            margin: 15px 0;
+        }
+        .section {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input[type="text"],
+        textarea {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box; /* Ensures padding doesn't increase width */
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s ease;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .hidden {
+            display: none;
+        }
+        #output-display p {
+            margin-bottom: 8px;
+            word-wrap: break-word; /* Ensures long text wraps */
+        }
+        #output-display strong {
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+<h1>Job Fit AI Assistant</h1>
+<hr />
+
+<!-- Section for API Key Input -->
+<div id="api-key-section" class="section">
+    <p>Please enter your GOOGLE_API_KEY to get started:</p>
+    <label for="google-api-key">Google API Key:</label>
+    <input type="text" id="google-api-key" placeholder="Enter your API key here">
+    <button id="save-api-key-btn">Save API Key</button>
+    <p id="api-key-message" style="color: red; margin-top: 10px;"></p>
+</div>
+
+<!-- Section for User Details Input -->
+<div id="user-details-section" class="section hidden">
+    <p>Now, let's set up your profile:</p>
+    <label for="resume-path">Resume Path (e.g., C:\Users\YourName\Documents\resume.pdf):</label>
+    <input type="text" id="resume-path" placeholder="Path to your resume file">
+    <label for="additional-details">Additional Details (e.g., preferred roles, industries):</label>
+    <textarea id="additional-details" rows="4" placeholder="Any other details you'd like to save"></textarea>
+    <button id="save-user-details-btn">Save Details</button>
+    <p id="user-details-message" style="color: green; margin-top: 10px;"></p>
+</div>
+
+<!-- Section for Displaying Output -->
+<div id="output-display" class="section hidden">
+    <h2>Analysis Result</h2>
+    <p><strong>Selected Text:</strong> <span id="display-selected-text"></span></p>
+    <p><strong>Resume Path:</strong> <span id="display-resume-path"></span></p>
+    <p><strong>Additional Info:</strong> <span id="display-additional-details"></span></p>
+</div>
+
+<script src="js/sidepanel.js"></script>
+</body>
 </html>
