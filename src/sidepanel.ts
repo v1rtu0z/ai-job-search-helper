@@ -32,14 +32,14 @@ const backBtn = document.getElementById('back-btn') as HTMLButtonElement;
 const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
 const retryBtn = document.getElementById('retry-btn') as HTMLButtonElement;
 
+// TODO: Turn these 3 into a mapping like {jobPostingText: { 'Analysis': lastAnalysisMarkdown, 'CoverLetter': lastCoverLetterOutput}}
+//  In this way no llm calls will get spent unless the user needs it to happen (retries/new entries)
 let lastAnalysisMarkdown: string | null = null;
 let lastCoverLetterOutput: { filename: string, content: string, jobPostingText: string } | null = null;
 let jobPostingText: string | null = null;
-let lastAction: 'analyze' | 'cover-letter' | null = null;
-let lastPrompt: string | null = null;
 
-let currentState: 'instructions' | 'analysis' | 'cover-letter' | 'settings' | 'loading' = 'instructions';
-let lastView: 'analysis' | 'cover-letter' | 'instructions' | 'settings' | null = null; // Added 'settings' to lastView
+// TODO: Keep a history of states visited
+let currentState: 'instructions' | 'analysis' | 'cover-letter' = 'instructions';
 
 const converter = new showdown.Converter();
 
@@ -72,9 +72,6 @@ function hideAllSections(): void {
 function showInstructionDisplay(): void {
     hideAllSections();
     instructionDisplay.classList.remove('hidden');
-    if (currentState !== 'loading' && lastView !== currentState) {
-        lastView = currentState;
-    }
     currentState = 'instructions';
     settingsBtn.classList.remove('hidden');
     backBtn.classList.add('hidden');
@@ -84,10 +81,6 @@ function showLoadingSpinner(text: string = "Processing..."): void {
     hideAllSections();
     loadingSpinnerTitle.textContent = text;
     loadingSpinnerSection.classList.remove('hidden');
-    if (currentState !== 'loading' && lastView !== currentState) {
-        lastView = currentState;
-    }
-    currentState = 'loading';
     backBtn.classList.remove('hidden');
     settingsBtn.classList.add('hidden');
 }
@@ -112,10 +105,6 @@ async function showSettingsView(): Promise<void> {
     apiKeyMessage.textContent = '';
     userDetailsMessage.textContent = '';
 
-    if (currentState !== 'loading' && lastView !== currentState) {
-        lastView = currentState;
-    }
-    currentState = 'settings';
     settingsBtn.classList.add('hidden');
     if (userSettings.googleApiKey && userSettings.resumeFileName) {
         backBtn.classList.remove('hidden');
@@ -131,30 +120,25 @@ function showMarkdownOutput(markdown: string): void {
     markdownOutputSection.classList.remove('hidden');
     tailorResumeBtn.classList.remove('hidden');
     generateCoverLetterBtn.classList.remove('hidden');
-    if (lastAction === 'analyze') {
-        retryBtn.classList.remove('hidden');
-    }
+
+    // Show retry button for analysis
+    retryBtn.classList.remove('hidden');
+
     lastAnalysisMarkdown = markdown;
-    if (currentState !== 'loading' && lastView !== currentState) {
-        lastView = currentState;
-    }
+
     currentState = 'analysis';
     backBtn.classList.remove('hidden');
     settingsBtn.classList.remove('hidden');
 }
 
-function showErrorOutput(message: string, action: 'analyze' | 'cover-letter'): void {
+function showErrorOutput(message: string): void {
     if (abortController) {
         abortController = null;
     }
     hideAllSections();
     markdownContent.innerHTML = converter.makeHtml(message);
     markdownOutputSection.classList.remove('hidden');
-    retryBtn.classList.remove('hidden'); // This is already in your code, but I'm keeping it for clarity on the change.
-    lastAction = action;
-    if (currentState !== 'loading' && lastView !== currentState) {
-        lastView = currentState;
-    }
+    retryBtn.classList.remove('hidden');
     currentState = 'analysis';
     backBtn.classList.remove('hidden');
     settingsBtn.classList.remove('hidden');
@@ -189,17 +173,11 @@ function showCoverLetterOutput(filename: string, content: string): void {
     backBtn.classList.remove('hidden');
     settingsBtn.classList.remove('hidden');
     tailorResumeBtn.classList.remove('hidden');
-    // We now show the retry button when showing the cover letter output.
-    if (lastAction === 'cover-letter') {
-        retryBtn.classList.remove('hidden');
-    }
+    retryBtn.classList.remove('hidden');
     lastCoverLetterOutput = {filename, content, jobPostingText: jobPostingText!};
-    if (currentState !== 'loading' && lastView !== currentState) {
-        lastView = currentState;
-    }
     currentState = 'cover-letter';
     downloadCoverLetterBtn.onclick = () => {
-        const blob = new Blob([wrappedContent], { type: 'text/plain' });
+        const blob = new Blob([wrappedContent], {type: 'text/plain'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -211,32 +189,27 @@ function showCoverLetterOutput(filename: string, content: string): void {
     };
 }
 
+// TODO: Add a history of *distinct* states so that circular paths can be covered. Make the back button show previous
+//  states name on hover
 function handleBackButtonClick(): void {
     if (abortController) {
         abortController.abort();
         abortController = null;
     }
 
-    switch (lastView) {
+    // We are going back from a generated content to a previous view
+    switch (currentState) {
         case 'cover-letter':
-            if (lastCoverLetterOutput) {
-                showCoverLetterOutput(lastCoverLetterOutput.filename, lastCoverLetterOutput.content);
-            } else {
-                showInstructionDisplay();
-            }
-            break;
-        case 'analysis':
             if (lastAnalysisMarkdown) {
                 showMarkdownOutput(lastAnalysisMarkdown);
             } else {
                 showInstructionDisplay();
             }
             break;
-        case 'instructions':
+        case 'analysis':
             showInstructionDisplay();
             break;
-        case 'settings':
-            showSettingsView();
+        case 'instructions':
             break;
         default:
             showInstructionDisplay();
@@ -382,7 +355,7 @@ async function analyzeJobPosting(text: string): Promise<boolean> {
         if (signal.aborted) return false;
 
         if (!googleApiKey || !resumeFileContent) {
-            showSettingsView();
+            await showSettingsView();
             apiKeyMessage.textContent = 'Please provide your API key and upload a resume to proceed.';
             apiKeyMessage.style.color = 'red';
             return false;
@@ -410,7 +383,7 @@ async function analyzeJobPosting(text: string): Promise<boolean> {
             ${jobPostingText}
             Analyze the job description and provide a professional, structured analysis in Markdown format as follows:
             ### Overall Fit
-            Provides a concise summary of how well the user's profile fits the job description. Start it by giving a very visible "score" which should be one of: very poor fit, poor fit, moderate fit, good fit, very good fit, questionable fit. The questionable fit should be used only when there isn't enough information. Note that missing core skills for a job shouldn't be able to lead to more than a poor fit. Similar logic should apply for details like salary, location, industry etc, if the user has specified them of course. For the score - insert an HTML block like this: <span style="color:red">*red* fit score</span>. and color the score from red to green so that it's very obvious to the user.
+            Provides a concise summary of how well the user's profile fits the job description. Start it by giving a very visible "score" which should be one of: very poor fit, poor fit, moderate fit, good fit, very good fit, questionable fit. Use only those options and *do not include the work score in the actual score*. The questionable fit should be used only when there isn't enough information. Note that missing core skills for a job shouldn't be able to lead to more than a poor fit. Similar logic should apply for details like salary, location, industry etc, if the user has specified them of course. For the score - insert an HTML block like this: <span style="color:red">*red* fit</span>. and color the text from red to green so that it's very obvious to the user.
             ### Strengths
             Lists the key skills, experiences, and qualifications from the context that match the job posting.
             ### Areas for Improvement
@@ -421,7 +394,6 @@ async function analyzeJobPosting(text: string): Promise<boolean> {
              The selected text does not appear to be a job description. Please select a job description and try again."
             Note that the job description might not be in English and shouldn't be dismissed in that case!
         `;
-        lastPrompt = prompt;
 
         const chunks: string[] = [];
         try {
@@ -438,8 +410,6 @@ async function analyzeJobPosting(text: string): Promise<boolean> {
                 return false;
             }
             showMarkdownOutput(chunks.join(""));
-            lastAction = 'analyze';
-            retryBtn.classList.remove('hidden');
         } catch (error: any) {
             console.error('Error during LlamaIndex query:', error);
             if (signal.aborted) {
@@ -448,7 +418,7 @@ async function analyzeJobPosting(text: string): Promise<boolean> {
             const errorMessage = `### Analysis Failed
 An error occurred while analyzing the job posting. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
 Please check your API key and network connection, then try again.`;
-            showErrorOutput(errorMessage, 'analyze');
+            showErrorOutput(errorMessage);
         }
     } catch (error) {
         console.error('Error processing selected text:', error);
@@ -458,7 +428,7 @@ Please check your API key and network connection, then try again.`;
         const errorMessage = `### Analysis Failed
 An error occurred while analyzing the job posting. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
 Please check your API key and network connection, then try again.`;
-        showErrorOutput(errorMessage, 'analyze');
+        showErrorOutput(errorMessage);
     }
     return true;
 }
@@ -485,7 +455,7 @@ async function generateCoverLetter(retry = false): Promise<boolean> {
         if (signal.aborted) return false;
 
         if (!googleApiKey || !resumeFileContent || !jobPostingText) {
-            showSettingsView();
+            await showSettingsView();
             apiKeyMessage.textContent = 'Please provide your API key, upload a resume and select a job description to proceed.';
             apiKeyMessage.style.color = 'red';
             return false;
@@ -534,7 +504,6 @@ async function generateCoverLetter(retry = false): Promise<boolean> {
             Note that the job description might not be in English and shouldn't be dismissed in that case!
             Always write the cover letter in the same language as the job description.
         `;
-        lastPrompt = prompt;
 
         try {
             const chunks: string[] = [];
@@ -558,12 +527,8 @@ async function generateCoverLetter(retry = false): Promise<boolean> {
                 const filename = filenameMatch[1].trim();
                 const coverLetterContent = responseText.replace(filenameMatch[0], '').trim();
                 showCoverLetterOutput(filename, coverLetterContent);
-                lastAction = 'cover-letter';
-                retryBtn.classList.remove('hidden');
             } else {
                 showMarkdownOutput(responseText);
-                lastAction = 'cover-letter';
-                retryBtn.classList.remove('hidden');
             }
         } catch (error: any) {
             console.error('Error during LlamaIndex query:', error);
@@ -573,7 +538,7 @@ async function generateCoverLetter(retry = false): Promise<boolean> {
             const errorMessage = `### Cover letter generation Failed
 An error occurred while generating cover letter. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
 Please check your API key and network connection, then try again.`;
-            showErrorOutput(errorMessage, 'cover-letter');
+            showErrorOutput(errorMessage);
         }
     } catch (error: any) {
         console.error('Error generating cover letter:', error);
@@ -583,21 +548,7 @@ Please check your API key and network connection, then try again.`;
         const errorMessage = `### Cover letter generation Failed
 An error occurred while generating cover letter. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
 Please check your API key and network connection, then try again.`;
-        showErrorOutput(errorMessage, 'cover-letter');
-    }
-    return true;
-}
-
-// fixme: retry not showing on job analysis, back not going back correctly after retry
-function retryLastAction(): boolean {
-    if (!lastAction || !lastPrompt) {
-        console.error("No last action to retry.");
-        return false;
-    }
-    if (lastAction === 'analyze') {
-        analyzeJobPosting(jobPostingText!);
-    } else if (lastAction === 'cover-letter') {
-        generateCoverLetter(true);
+        showErrorOutput(errorMessage);
     }
     return true;
 }
@@ -623,7 +574,14 @@ generateCoverLetterBtn.addEventListener('click', () => {
 
 backBtn.addEventListener('click', handleBackButtonClick);
 settingsBtn.addEventListener('click', showSettingsView);
-retryBtn.addEventListener('click', retryLastAction);
+
+retryBtn.addEventListener('click', () => {
+    if (currentState === 'analysis' && jobPostingText) {
+        analyzeJobPosting(jobPostingText);
+    } else if (currentState === 'cover-letter' && jobPostingText) {
+        generateCoverLetter(true);
+    }
+});
 
 initializeSidePanel();
 chrome.runtime.sendMessage({type: 'side-panel-ready'}).catch(error => console.log('Error sending side-panel-ready message:', error));
