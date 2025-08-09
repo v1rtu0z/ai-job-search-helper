@@ -32,14 +32,19 @@ const backBtn = document.getElementById('back-btn') as HTMLButtonElement;
 const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
 const retryBtn = document.getElementById('retry-btn') as HTMLButtonElement;
 
-// TODO: Turn these 3 into a mapping like {jobPostingText: { 'Analysis': lastAnalysisMarkdown, 'CoverLetter': lastCoverLetterOutput}}
-//  In this way no llm calls will get spent unless the user needs it to happen (retries/new entries)
-let lastAnalysisMarkdown: string | null = null;
-let lastCoverLetterOutput: { filename: string, content: string, jobPostingText: string } | null = null;
-let jobPostingText: string | null = null;
+type JobAnalysisCache = {
+    'Analysis': string | null;
+    'CoverLetter': { filename: string, content: string } | null;
+};
 
-// TODO: Keep a history of states visited
+// note: cache miss fail happen when the selected text is not the same. On LinkedIn for example, if one selects
+// everything from the company logo to the end of the job end, different stuff gets selected depending on if
+// they select from top to the bottom or from the bottom to the top.
+let jobPostingCache: Record<string, JobAnalysisCache> = {};
+let latestJobPostingText: string | null = null
+
 let currentState: 'instructions' | 'analysis' | 'cover-letter' = 'instructions';
+const stateHistory: Array<'instructions' | 'analysis' | 'cover-letter'> = [];
 
 const converter = new showdown.Converter();
 
@@ -53,6 +58,16 @@ interface UserSettings {
     resumeFileName?: string;
     resumeFileContent?: string;
     additionalDetails?: string;
+}
+
+function updateState(newState: 'instructions' | 'analysis' | 'cover-letter', isBackNavigation: boolean = false): void {
+    if (currentState !== newState) {
+        if (!isBackNavigation) {
+            stateHistory.push(currentState);
+        }
+        currentState = newState;
+        console.log(`State changed to: ${currentState}, History:`, stateHistory);
+    }
 }
 
 function hideAllSections(): void {
@@ -69,15 +84,15 @@ function hideAllSections(): void {
     retryBtn.classList.add('hidden');
 }
 
-function showInstructionDisplay(): void {
+function showInstructionDisplay(isBackNavigation: boolean = false): void {
     hideAllSections();
     instructionDisplay.classList.remove('hidden');
-    currentState = 'instructions';
+    updateState('instructions', isBackNavigation);
     settingsBtn.classList.remove('hidden');
     backBtn.classList.add('hidden');
 }
 
-function showLoadingSpinner(text: string = "Processing..."): void {
+function showLoadingSpinner(text: string = "Processing...", isBackNavigation: boolean = false): void {
     hideAllSections();
     loadingSpinnerTitle.textContent = text;
     loadingSpinnerSection.classList.remove('hidden');
@@ -106,12 +121,20 @@ async function showSettingsView(): Promise<void> {
     userDetailsMessage.textContent = '';
 
     settingsBtn.classList.add('hidden');
-    if (userSettings.googleApiKey && userSettings.resumeFileName) {
-        backBtn.classList.remove('hidden');
+    backBtn.classList.remove('hidden');
+}
+
+async function retryLastAction(jobPostingText: string | null) {
+    if (jobPostingText) {
+        if (currentState === 'analysis') {
+            analyzeJobPosting(jobPostingText, true);
+        } else if (currentState === 'cover-letter') {
+            generateCoverLetter(jobPostingText, true);
+        }
     }
 }
 
-function showMarkdownOutput(markdown: string): void {
+function showMarkdown(markdown: string, jobPostingText: string, isBackNavigation: boolean = false): void {
     if (abortController) {
         abortController = null;
     }
@@ -121,17 +144,27 @@ function showMarkdownOutput(markdown: string): void {
     tailorResumeBtn.classList.remove('hidden');
     generateCoverLetterBtn.classList.remove('hidden');
 
-    // Show retry button for analysis
     retryBtn.classList.remove('hidden');
 
-    lastAnalysisMarkdown = markdown;
+    if (!jobPostingCache[jobPostingText]) {
+        jobPostingCache[jobPostingText] = {Analysis: null, CoverLetter: null};
+    }
+    jobPostingCache[jobPostingText].Analysis = markdown;
 
-    currentState = 'analysis';
+    updateState('analysis', isBackNavigation);
     backBtn.classList.remove('hidden');
     settingsBtn.classList.remove('hidden');
+
+    generateCoverLetterBtn.onclick = () => {
+        generateCoverLetter(jobPostingText);
+    };
+
+    retryBtn.onclick = () => {
+        retryLastAction(jobPostingText);
+    };
 }
 
-function showErrorOutput(message: string): void {
+function showErrorOutput(message: string, isBackNavigation: boolean = false): void {
     if (abortController) {
         abortController = null;
     }
@@ -139,7 +172,7 @@ function showErrorOutput(message: string): void {
     markdownContent.innerHTML = converter.makeHtml(message);
     markdownOutputSection.classList.remove('hidden');
     retryBtn.classList.remove('hidden');
-    currentState = 'analysis';
+    updateState('analysis', isBackNavigation);
     backBtn.classList.remove('hidden');
     settingsBtn.classList.remove('hidden');
 }
@@ -160,7 +193,7 @@ function wrapText(text: string, lineLength: number): string {
     return lines.join('\n');
 }
 
-function showCoverLetterOutput(filename: string, content: string): void {
+function showCoverLetterOutput(filename: string, content: string, jobPostingText: string, isBackNavigation: boolean = false): void {
     if (abortController) {
         abortController = null;
     }
@@ -174,8 +207,17 @@ function showCoverLetterOutput(filename: string, content: string): void {
     settingsBtn.classList.remove('hidden');
     tailorResumeBtn.classList.remove('hidden');
     retryBtn.classList.remove('hidden');
-    lastCoverLetterOutput = {filename, content, jobPostingText: jobPostingText!};
-    currentState = 'cover-letter';
+
+    retryBtn.onclick = () => {
+        retryLastAction(jobPostingText);
+    };
+
+    if (!jobPostingCache[jobPostingText]) {
+        jobPostingCache[jobPostingText] = {Analysis: null, CoverLetter: null};
+    }
+    jobPostingCache[jobPostingText].CoverLetter = {filename, content};
+
+    updateState('cover-letter', isBackNavigation);
     downloadCoverLetterBtn.onclick = () => {
         const blob = new Blob([wrappedContent], {type: 'text/plain'});
         const url = URL.createObjectURL(blob);
@@ -189,30 +231,39 @@ function showCoverLetterOutput(filename: string, content: string): void {
     };
 }
 
-// TODO: Add a history of *distinct* states so that circular paths can be covered. Make the back button show previous
-//  states name on hover
 function handleBackButtonClick(): void {
     if (abortController) {
         abortController.abort();
         abortController = null;
     }
 
-    // We are going back from a generated content to a previous view
-    switch (currentState) {
-        case 'cover-letter':
-            if (lastAnalysisMarkdown) {
-                showMarkdownOutput(lastAnalysisMarkdown);
+    let previousState: "instructions" | "analysis" | "cover-letter";
+    if (settingsView.classList.contains('hidden')) {
+        previousState = stateHistory.pop();
+    } else {
+        previousState = currentState;
+    }
+    console.log(`Back button clicked. Previous state: ${previousState}, New history:`, stateHistory);
+
+    switch (previousState) {
+        case 'analysis':
+            if (latestJobPostingText && jobPostingCache[latestJobPostingText]?.Analysis) {
+                showMarkdown(jobPostingCache[latestJobPostingText].Analysis!, latestJobPostingText, true);
             } else {
-                showInstructionDisplay();
+                showInstructionDisplay(true);
             }
             break;
-        case 'analysis':
-            showInstructionDisplay();
+        case 'cover-letter':
+            if (latestJobPostingText && jobPostingCache[latestJobPostingText]?.CoverLetter) {
+                const {filename, content} = jobPostingCache[latestJobPostingText].CoverLetter!;
+                showCoverLetterOutput(filename, content, latestJobPostingText, true);
+            } else {
+                showInstructionDisplay(true);
+            }
             break;
         case 'instructions':
-            break;
         default:
-            showInstructionDisplay();
+            showInstructionDisplay(true);
             break;
     }
 }
@@ -324,9 +375,10 @@ saveAllSettingsBtn.addEventListener('click', async () => {
 
         userDetailsMessage.textContent = 'All data saved successfully!';
         userDetailsMessage.style.color = 'green';
+        jobPostingCache = {};
 
         setTimeout(() => {
-            handleBackButtonClick(); // This will navigate to the correct last view
+            showInstructionDisplay();
             apiKeyMessage.textContent = '';
             userDetailsMessage.textContent = '';
         }, 1000);
@@ -338,7 +390,17 @@ saveAllSettingsBtn.addEventListener('click', async () => {
     }
 });
 
-async function analyzeJobPosting(text: string): Promise<boolean> {
+async function analyzeJobPosting(text: string, retry: boolean = false): Promise<boolean> {
+    let jobPostingText = text.trim();
+    console.log('jobPostingText: ', jobPostingText);
+    latestJobPostingText = jobPostingText
+
+    if (!retry && jobPostingCache[jobPostingText]?.Analysis) {
+        console.log("Serving cached analysis.");
+        showMarkdown(jobPostingCache[jobPostingText].Analysis!, jobPostingText);
+        return true;
+    }
+
     showLoadingSpinner("Analyzing job posting...");
     if (abortController) {
         abortController.abort();
@@ -350,7 +412,6 @@ async function analyzeJobPosting(text: string): Promise<boolean> {
         const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
         const userSettings = result.userSettings || {};
         const {googleApiKey, resumeFileContent} = userSettings;
-        jobPostingText = text;
 
         if (signal.aborted) return false;
 
@@ -409,7 +470,8 @@ async function analyzeJobPosting(text: string): Promise<boolean> {
                 console.log('Analysis was aborted after streaming completed.');
                 return false;
             }
-            showMarkdownOutput(chunks.join(""));
+            const fullResponse = chunks.join("");
+            showMarkdown(fullResponse, jobPostingText);
         } catch (error: any) {
             console.error('Error during LlamaIndex query:', error);
             if (signal.aborted) {
@@ -433,10 +495,11 @@ Please check your API key and network connection, then try again.`;
     return true;
 }
 
-async function generateCoverLetter(retry = false): Promise<boolean> {
-    if (!retry && lastCoverLetterOutput && lastCoverLetterOutput.jobPostingText === jobPostingText) {
+async function generateCoverLetter(jobPostingText: string, retry = false): Promise<boolean> {
+    if (!retry && jobPostingText && jobPostingCache[jobPostingText]?.CoverLetter) {
         console.log("Serving cached cover letter.");
-        showCoverLetterOutput(lastCoverLetterOutput.filename, lastCoverLetterOutput.content);
+        const {filename, content} = jobPostingCache[jobPostingText].CoverLetter!;
+        showCoverLetterOutput(filename, content, jobPostingText);
         return true;
     }
 
@@ -526,9 +589,9 @@ async function generateCoverLetter(retry = false): Promise<boolean> {
             if (filenameMatch && filenameMatch[1]) {
                 const filename = filenameMatch[1].trim();
                 const coverLetterContent = responseText.replace(filenameMatch[0], '').trim();
-                showCoverLetterOutput(filename, coverLetterContent);
+                showCoverLetterOutput(filename, coverLetterContent, jobPostingText);
             } else {
-                showMarkdownOutput(responseText);
+                showMarkdown(responseText, jobPostingText);
             }
         } catch (error: any) {
             console.error('Error during LlamaIndex query:', error);
@@ -564,24 +627,16 @@ chrome.runtime.onMessage.addListener((message: {
     return false;
 });
 
-tailorResumeBtn.addEventListener('click', () => {
-    console.log('Tailor Resume button clicked!');
-});
+function tailorResume() {
+    return () => {
+        console.log('Tailor Resume button clicked!');
+    };
+}
 
-generateCoverLetterBtn.addEventListener('click', () => {
-    generateCoverLetter();
-});
+tailorResumeBtn.addEventListener('click', tailorResume());
 
 backBtn.addEventListener('click', handleBackButtonClick);
 settingsBtn.addEventListener('click', showSettingsView);
-
-retryBtn.addEventListener('click', () => {
-    if (currentState === 'analysis' && jobPostingText) {
-        analyzeJobPosting(jobPostingText);
-    } else if (currentState === 'cover-letter' && jobPostingText) {
-        generateCoverLetter(true);
-    }
-});
 
 initializeSidePanel();
 chrome.runtime.sendMessage({type: 'side-panel-ready'}).catch(error => console.log('Error sending side-panel-ready message:', error));
