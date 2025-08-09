@@ -69,3 +69,62 @@ chrome.contextMenus.onClicked.addListener((data: ContextMenuData, tab?: Tab) => 
         chrome.runtime.onMessage.addListener(messageListener);
     });
 });
+
+
+// New listener for the keyboard shortcut
+chrome.commands.onCommand.addListener((command: string) => {
+    if (command === 'analyze-job-posting-shortcut') {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const activeTab = tabs[0];
+
+            // Open the side panel as a user action
+            chrome.sidePanel.open({ tabId: activeTab.id });
+
+            if (activeTab && activeTab.id) {
+                chrome.scripting.executeScript({
+                    target: { tabId: activeTab.id },
+                    func: () => window.getSelection()?.toString()
+                }).then(selectionResult => {
+                    const selectedText = selectionResult[0].result;
+                    const tabId = activeTab.id;
+
+                    if (selectedText) {
+                        // Try to send the message synchronously
+                        chrome.runtime.sendMessage({
+                            type: 'selected-text',
+                            text: selectedText
+                        }).catch(error => {
+                            // If the message fails, it means the side panel is not open yet.
+                            console.warn('Side panel not active yet, adding a listener for its readiness:', error);
+
+                            // Create a temporary listener for the 'side-panel-ready' message.
+                            const messageListener = (message: any, sender: chrome.runtime.MessageSender) => {
+                                if (message.type === 'side-panel-ready') {
+                                    console.log('Side panel is ready, sending selected text.');
+
+                                    // Once ready, send the message.
+                                    chrome.runtime.sendMessage({
+                                        type: 'selected-text',
+                                        text: selectedText
+                                    }).catch(error => console.error('Error sending message:', error));
+
+                                    // Remove this temporary listener to prevent memory leaks.
+                                    chrome.runtime.onMessage.removeListener(messageListener);
+
+                                    // Return true to keep the message channel open.
+                                    return true;
+                                }
+                                return false;
+                            };
+
+                            // Add the listener.
+                            chrome.runtime.onMessage.addListener(messageListener);
+                        });
+                    } else {
+                        console.warn('No text selected for keyboard shortcut action.');
+                    }
+                }).catch(error => console.error('Scripting failed:', error));
+            }
+        });
+    }
+});

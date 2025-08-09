@@ -29,6 +29,16 @@
     "activeTab"
   ],
 
+  "commands": {
+    "analyze-job-posting-shortcut": {
+      "suggested_key": {
+        "default": "Ctrl+B",
+        "mac": "Command+B"
+      },
+      "description": "Analyze the selected text for job fit."
+    }
+  },
+
   "host_permissions": [
     "<all_urls>"
   ]
