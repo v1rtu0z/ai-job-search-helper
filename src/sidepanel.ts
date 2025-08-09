@@ -14,6 +14,7 @@ const additionalDetailsTextarea = document.getElementById('additional-details') 
 const userDetailsMessage = document.getElementById('user-details-message') as HTMLParagraphElement;
 
 const instructionDisplay = document.getElementById('instruction-display') as HTMLDivElement;
+const instructionContent = document.getElementById('instruction-content') as HTMLDivElement;
 
 const markdownOutputSection = document.getElementById('markdown-output-section') as HTMLDivElement;
 const markdownContent = document.getElementById('markdown-content') as HTMLDivElement;
@@ -45,6 +46,7 @@ let latestJobPostingText: string | null = null
 
 let currentState: 'instructions' | 'analysis' | 'cover-letter' = 'instructions';
 const stateHistory: Array<'instructions' | 'analysis' | 'cover-letter'> = [];
+let cachedSearchQuery: string | null = null;
 
 const converter = new showdown.Converter();
 
@@ -87,9 +89,11 @@ function hideAllSections(): void {
 function showInstructionDisplay(isBackNavigation: boolean = false): void {
     hideAllSections();
     instructionDisplay.classList.remove('hidden');
+    instructionContent.innerHTML = '';
     updateState('instructions', isBackNavigation);
     settingsBtn.classList.remove('hidden');
     backBtn.classList.add('hidden');
+    generateSearchQuery();
 }
 
 function showLoadingSpinner(text: string = "Processing...", isBackNavigation: boolean = false): void {
@@ -124,13 +128,11 @@ async function showSettingsView(): Promise<void> {
     backBtn.classList.remove('hidden');
 }
 
-async function retryLastAction(jobPostingText: string | null) {
-    if (jobPostingText) {
-        if (currentState === 'analysis') {
-            analyzeJobPosting(jobPostingText, true);
-        } else if (currentState === 'cover-letter') {
-            generateCoverLetter(jobPostingText, true);
-        }
+async function retryLastAction(jobPostingText: string) {
+    if (currentState === 'analysis' && jobPostingText) {
+        analyzeJobPosting(jobPostingText, true);
+    } else if (currentState === 'cover-letter' && jobPostingText) {
+        generateCoverLetter(jobPostingText, true);
     }
 }
 
@@ -147,7 +149,7 @@ function showMarkdown(markdown: string, jobPostingText: string, isBackNavigation
     retryBtn.classList.remove('hidden');
 
     if (!jobPostingCache[jobPostingText]) {
-        jobPostingCache[jobPostingText] = {Analysis: null, CoverLetter: null};
+        jobPostingCache[jobPostingText] = { Analysis: null, CoverLetter: null };
     }
     jobPostingCache[jobPostingText].Analysis = markdown;
 
@@ -155,13 +157,13 @@ function showMarkdown(markdown: string, jobPostingText: string, isBackNavigation
     backBtn.classList.remove('hidden');
     settingsBtn.classList.remove('hidden');
 
-    generateCoverLetterBtn.onclick = () => {
+    generateCoverLetterBtn.addEventListener('click', () => {
         generateCoverLetter(jobPostingText);
-    };
+    });
 
-    retryBtn.onclick = () => {
+    retryBtn.addEventListener('click', () => {
         retryLastAction(jobPostingText);
-    };
+    });
 }
 
 function showErrorOutput(message: string, isBackNavigation: boolean = false): void {
@@ -194,6 +196,7 @@ function wrapText(text: string, lineLength: number): string {
 }
 
 function showCoverLetterOutput(filename: string, content: string, jobPostingText: string, isBackNavigation: boolean = false): void {
+    // FIXME: Output looks lame, it should be polished and made editable by the user
     if (abortController) {
         abortController = null;
     }
@@ -208,14 +211,14 @@ function showCoverLetterOutput(filename: string, content: string, jobPostingText
     tailorResumeBtn.classList.remove('hidden');
     retryBtn.classList.remove('hidden');
 
-    retryBtn.onclick = () => {
+    retryBtn.addEventListener('click', () => {
         retryLastAction(jobPostingText);
-    };
+    });
 
     if (!jobPostingCache[jobPostingText]) {
-        jobPostingCache[jobPostingText] = {Analysis: null, CoverLetter: null};
+        jobPostingCache[jobPostingText] = { Analysis: null, CoverLetter: null };
     }
-    jobPostingCache[jobPostingText].CoverLetter = {filename, content};
+    jobPostingCache[jobPostingText].CoverLetter = { filename, content };
 
     updateState('cover-letter', isBackNavigation);
     downloadCoverLetterBtn.onclick = () => {
@@ -243,6 +246,7 @@ function handleBackButtonClick(): void {
     } else {
         previousState = currentState;
     }
+
     console.log(`Back button clicked. Previous state: ${previousState}, New history:`, stateHistory);
 
     switch (previousState) {
@@ -304,6 +308,85 @@ async function create_index_from_data(fileContent: string, additionalDetails: st
         new Document({text: additionalDetails, id_: 'additional_details'}),
     ];
     return await VectorStoreIndex.fromDocuments(documents);
+}
+
+async function generateSearchQuery(forceRegenerate: boolean = false): Promise<void> {
+    if (!forceRegenerate && cachedSearchQuery) {
+        instructionContent.innerHTML = `
+            <div class="search-query-header">
+                <h3>Your Personalized Search Query</h3>
+                <button id="refresh-query-btn" class="icon-button" style="right: 3%;">
+                    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="256" height="256" viewBox="0 0 256 256" xml:space="preserve">
+<g style="stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: none; fill-rule: nonzero; opacity: 1;" transform="translate(1.4065934065934016 1.4065934065934016) scale(2.81 2.81)">
+	<path d="M 81.521 31.109 c -0.86 -1.73 -2.959 -2.438 -4.692 -1.575 c -1.73 0.86 -2.436 2.961 -1.575 4.692 c 2.329 4.685 3.51 9.734 3.51 15.01 C 78.764 67.854 63.617 83 45 83 S 11.236 67.854 11.236 49.236 c 0 -16.222 11.501 -29.805 26.776 -33.033 l -3.129 4.739 c -1.065 1.613 -0.62 3.784 0.992 4.85 c 0.594 0.392 1.264 0.579 1.926 0.579 c 1.136 0 2.251 -0.553 2.924 -1.571 l 7.176 -10.87 c 0.001 -0.001 0.001 -0.002 0.002 -0.003 l 0.018 -0.027 c 0.063 -0.096 0.106 -0.199 0.159 -0.299 c 0.049 -0.093 0.108 -0.181 0.149 -0.279 c 0.087 -0.207 0.152 -0.419 0.197 -0.634 c 0.009 -0.041 0.008 -0.085 0.015 -0.126 c 0.031 -0.182 0.053 -0.364 0.055 -0.547 c 0 -0.014 0.004 -0.028 0.004 -0.042 c 0 -0.066 -0.016 -0.128 -0.019 -0.193 c -0.008 -0.145 -0.018 -0.288 -0.043 -0.431 c -0.018 -0.097 -0.045 -0.189 -0.071 -0.283 c -0.032 -0.118 -0.065 -0.236 -0.109 -0.35 c -0.037 -0.095 -0.081 -0.185 -0.125 -0.276 c -0.052 -0.107 -0.107 -0.211 -0.17 -0.313 c -0.054 -0.087 -0.114 -0.168 -0.175 -0.25 c -0.07 -0.093 -0.143 -0.183 -0.223 -0.27 c -0.074 -0.08 -0.153 -0.155 -0.234 -0.228 c -0.047 -0.042 -0.085 -0.092 -0.135 -0.132 L 36.679 0.775 c -1.503 -1.213 -3.708 -0.977 -4.921 0.53 c -1.213 1.505 -0.976 3.709 0.53 4.921 l 3.972 3.2 C 17.97 13.438 4.236 29.759 4.236 49.236 C 4.236 71.714 22.522 90 45 90 s 40.764 -18.286 40.764 -40.764 C 85.764 42.87 84.337 36.772 81.521 31.109 z" style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); fill-rule: nonzero; opacity: 1;" transform=" matrix(1 0 0 1 0 0) " stroke-linecap="round"/>
+</g>
+</svg>
+                </button>
+            </div>
+            <p>Here's a personalized LinkedIn search query, copy and paste it into the LinkedIn job search bar to get you started:</p>
+            <pre><code>${cachedSearchQuery}</code></pre>
+            <p><strong>Tip:</strong> Extending the query with more specific terms will yield better results!</p>
+        `;
+        document.getElementById('refresh-query-btn')?.addEventListener('click', () => generateSearchQuery(true));
+        return;
+    }
+
+    instructionContent.innerHTML = `
+        <br>
+        <h3>Generating a Search Query...</h3>
+        <div class="loading-spinner"></div>
+    `;
+
+    try {
+        const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
+        const userSettings = result.userSettings || {};
+        const {googleApiKey, resumeFileContent, additionalDetails} = userSettings;
+
+        if (!googleApiKey || !resumeFileContent) {
+            instructionContent.innerHTML = '<h3>Personalized Query</h3><p>Please go to settings to provide your API key and upload your resume to get a personalized LinkedIn search query.</p>';
+            return;
+        }
+
+        const llm = llamaindexGoogle.gemini({
+            apiKey: googleApiKey,
+            model: llamaindexGoogle.GEMINI_MODEL.GEMINI_2_5_FLASH_PREVIEW,
+        });
+
+        const prompt = `
+            Based on the following user data (resume and additional details), generate a personalized LinkedIn search query. The query should use Boolean search operators and be in the format: ("job title 1" OR "job title 2") AND NOT ("skill 1" OR "skill 2"). The query should be designed to help the user start their job search. Return only the search query string and nothing else.
+
+            User data:
+            Resume: ${resumeFileContent}
+            Additional Details: ${additionalDetails}
+        `;
+
+        const response = await llm.complete({prompt: prompt});
+        cachedSearchQuery = response.text.trim();
+
+        instructionContent.innerHTML = `
+            <div class="search-query-header">
+                <h3>Your Personalized Search Query</h3>
+                <button id="refresh-query-btn" class="icon-button" style="right: 3%;">
+                    <svg xmlns="http://www.w3.org/2000/svg"  version="1.1" width="256" height="256" viewBox="0 0 256 256" xml:space="preserve">
+<g style="stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: none; fill-rule: nonzero; opacity: 1;" transform="translate(1.4065934065934016 1.4065934065934016) scale(2.81 2.81)">
+	<path d="M 81.521 31.109 c -0.86 -1.73 -2.959 -2.438 -4.692 -1.575 c -1.73 0.86 -2.436 2.961 -1.575 4.692 c 2.329 4.685 3.51 9.734 3.51 15.01 C 78.764 67.854 63.617 83 45 83 S 11.236 67.854 11.236 49.236 c 0 -16.222 11.501 -29.805 26.776 -33.033 l -3.129 4.739 c -1.065 1.613 -0.62 3.784 0.992 4.85 c 0.594 0.392 1.264 0.579 1.926 0.579 c 1.136 0 2.251 -0.553 2.924 -1.571 l 7.176 -10.87 c 0.001 -0.001 0.001 -0.002 0.002 -0.003 l 0.018 -0.027 c 0.063 -0.096 0.106 -0.199 0.159 -0.299 c 0.049 -0.093 0.108 -0.181 0.149 -0.279 c 0.087 -0.207 0.152 -0.419 0.197 -0.634 c 0.009 -0.041 0.008 -0.085 0.015 -0.126 c 0.031 -0.182 0.053 -0.364 0.055 -0.547 c 0 -0.014 0.004 -0.028 0.004 -0.042 c 0 -0.066 -0.016 -0.128 -0.019 -0.193 c -0.008 -0.145 -0.018 -0.288 -0.043 -0.431 c -0.018 -0.097 -0.045 -0.189 -0.071 -0.283 c -0.032 -0.118 -0.065 -0.236 -0.109 -0.35 c -0.037 -0.095 -0.081 -0.185 -0.125 -0.276 c -0.052 -0.107 -0.107 -0.211 -0.17 -0.313 c -0.054 -0.087 -0.114 -0.168 -0.175 -0.25 c -0.07 -0.093 -0.143 -0.183 -0.223 -0.27 c -0.074 -0.08 -0.153 -0.155 -0.234 -0.228 c -0.047 -0.042 -0.085 -0.092 -0.135 -0.132 L 36.679 0.775 c -1.503 -1.213 -3.708 -0.977 -4.921 0.53 c -1.213 1.505 -0.976 3.709 0.53 4.921 l 3.972 3.2 C 17.97 13.438 4.236 29.759 4.236 49.236 C 4.236 71.714 22.522 90 45 90 s 40.764 -18.286 40.764 -40.764 C 85.764 42.87 84.337 36.772 81.521 31.109 z" style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); fill-rule: nonzero; opacity: 1;" transform=" matrix(1 0 0 1 0 0) " stroke-linecap="round"/>
+</g>
+</svg>
+                </button>
+            </div>
+            <p>Here's a personalized LinkedIn search query, copy and paste it into the LinkedIn job search bar to get you started:</p>
+            <pre><code>${cachedSearchQuery}</code></pre>
+            <p><strong>Tip:</strong> Extending the query with more specific terms will yield better results!</p>
+        `;
+        document.getElementById('refresh-query-btn')?.addEventListener('click', () => generateSearchQuery(true));
+
+    } catch (error) {
+        console.error('Error generating search query:', error);
+        instructionContent.innerHTML = `
+            <h3>Personalized Query</h3>
+            <p><strong>Note:</strong> We couldn't generate a personalized search query. Please check your settings and try again later.</p>
+        `;
+    }
 }
 
 saveAllSettingsBtn.addEventListener('click', async () => {
@@ -371,6 +454,7 @@ saveAllSettingsBtn.addEventListener('click', async () => {
                 apiKey: apiKey,
             });
             globalIndex = await create_index_from_data(userSettings.resumeFileContent!, userSettings.additionalDetails || '');
+            cachedSearchQuery = null;
         }
 
         userDetailsMessage.textContent = 'All data saved successfully!';
@@ -498,7 +582,7 @@ Please check your API key and network connection, then try again.`;
 async function generateCoverLetter(jobPostingText: string, retry = false): Promise<boolean> {
     if (!retry && jobPostingText && jobPostingCache[jobPostingText]?.CoverLetter) {
         console.log("Serving cached cover letter.");
-        const {filename, content} = jobPostingCache[jobPostingText].CoverLetter!;
+        const { filename, content } = jobPostingCache[jobPostingText].CoverLetter!;
         showCoverLetterOutput(filename, content, jobPostingText);
         return true;
     }
