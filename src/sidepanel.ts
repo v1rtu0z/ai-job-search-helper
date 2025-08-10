@@ -18,6 +18,7 @@ const instructionContent = document.getElementById('instruction-content') as HTM
 
 const markdownOutputSection = document.getElementById('markdown-output-section') as HTMLDivElement;
 const markdownContent = document.getElementById('markdown-content') as HTMLDivElement;
+const coverLetterTextarea = document.getElementById('cover-letter-textarea') as HTMLTextAreaElement;
 
 const loadingSpinnerSection = document.getElementById('loading-spinner-section') as HTMLDivElement;
 const loadingSpinnerTitle = document.getElementById('loading-spinner-title') as HTMLDivElement;
@@ -84,6 +85,8 @@ function hideAllSections(): void {
     generateCoverLetterBtn.classList.add('hidden');
     downloadCoverLetterBtn.classList.add('hidden');
     retryBtn.classList.add('hidden');
+    markdownContent.classList.add('hidden');
+    coverLetterTextarea.classList.add('hidden');
 }
 
 function showInstructionDisplay(isBackNavigation: boolean = false): void {
@@ -143,6 +146,7 @@ function showMarkdown(markdown: string, jobPostingText: string, isBackNavigation
     hideAllSections();
     markdownContent.innerHTML = converter.makeHtml(markdown);
     markdownOutputSection.classList.remove('hidden');
+    markdownContent.classList.remove('hidden');
     tailorResumeBtn.classList.remove('hidden');
     generateCoverLetterBtn.classList.remove('hidden');
 
@@ -173,37 +177,21 @@ function showErrorOutput(message: string, isBackNavigation: boolean = false): vo
     hideAllSections();
     markdownContent.innerHTML = converter.makeHtml(message);
     markdownOutputSection.classList.remove('hidden');
+    markdownContent.classList.remove('hidden');
     retryBtn.classList.remove('hidden');
     updateState('analysis', isBackNavigation);
     backBtn.classList.remove('hidden');
     settingsBtn.classList.remove('hidden');
 }
 
-function wrapText(text: string, lineLength: number): string {
-    const words = text.split(' ');
-    let lines = [];
-    let currentLine = '';
-    for (const word of words) {
-        if (currentLine.length + word.length + 1 > lineLength) {
-            lines.push(currentLine.trim());
-            currentLine = word + ' ';
-        } else {
-            currentLine += word + ' ';
-        }
-    }
-    lines.push(currentLine.trim());
-    return lines.join('\n');
-}
-
 function showCoverLetterOutput(filename: string, content: string, jobPostingText: string, isBackNavigation: boolean = false): void {
-    // FIXME: Output looks lame, it should be polished and made editable by the user
     if (abortController) {
         abortController = null;
     }
     hideAllSections();
-    const wrappedContent = wrapText(content, 85);
-    markdownContent.innerHTML = converter.makeHtml(`\`\`\`\n${wrappedContent}\n\`\`\``);
     markdownOutputSection.classList.remove('hidden');
+    coverLetterTextarea.value = content;
+    coverLetterTextarea.classList.remove('hidden');
     downloadCoverLetterBtn.classList.remove('hidden');
     downloadCoverLetterBtn.textContent = `Download as ${filename}`;
     backBtn.classList.remove('hidden');
@@ -222,7 +210,7 @@ function showCoverLetterOutput(filename: string, content: string, jobPostingText
 
     updateState('cover-letter', isBackNavigation);
     downloadCoverLetterBtn.onclick = () => {
-        const blob = new Blob([wrappedContent], {type: 'text/plain'});
+        const blob = new Blob([coverLetterTextarea.value], {type: 'text/plain'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -650,6 +638,7 @@ async function generateCoverLetter(jobPostingText: string, retry = false): Promi
             // [users_name_and_last_name]_cover_letter_{company_name}.txt
             Note that the job description might not be in English and shouldn't be dismissed in that case!
             Always write the cover letter in the same language as the job description.
+            Do not leave any placeholders in the cover letter. Do not attempt to add any formatting to it.
         `;
 
         try {
@@ -670,13 +659,15 @@ async function generateCoverLetter(jobPostingText: string, retry = false): Promi
             }
 
             const filenameMatch = responseText.match(/\/\/ (.*?)\n/);
+            let filename = "cover-letter.txt";
+            let coverLetterContent = responseText.trim();
             if (filenameMatch && filenameMatch[1]) {
-                const filename = filenameMatch[1].trim();
-                const coverLetterContent = responseText.replace(filenameMatch[0], '').trim();
-                showCoverLetterOutput(filename, coverLetterContent, jobPostingText);
-            } else {
-                showMarkdown(responseText, jobPostingText);
+                filename = filenameMatch[1].trim();
+                coverLetterContent = responseText.replace(filenameMatch[0], '').trim();
             }
+
+            showCoverLetterOutput(filename, coverLetterContent, jobPostingText);
+
         } catch (error: any) {
             console.error('Error during LlamaIndex query:', error);
             if (signal.aborted) {
