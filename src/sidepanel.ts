@@ -33,6 +33,7 @@ const saveAllSettingsBtn = document.getElementById('save-all-settings-btn') as H
 const backBtn = document.getElementById('back-btn') as HTMLButtonElement;
 const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
 const retryBtn = document.getElementById('retry-btn') as HTMLButtonElement;
+const githubLink = document.getElementById('github-link') as HTMLAnchorElement;
 
 type JobAnalysisCache = {
     'Analysis': string | null;
@@ -87,6 +88,8 @@ function hideAllSections(): void {
     retryBtn.classList.add('hidden');
     markdownContent.classList.add('hidden');
     coverLetterTextarea.classList.add('hidden');
+    settingsBtn.classList.add('hidden');
+    githubLink.classList.add('hidden');
 }
 
 function showInstructionDisplay(isBackNavigation: boolean = false): void {
@@ -104,7 +107,6 @@ function showLoadingSpinner(text: string = "Processing...", isBackNavigation: bo
     loadingSpinnerTitle.textContent = text;
     loadingSpinnerSection.classList.remove('hidden');
     backBtn.classList.remove('hidden');
-    settingsBtn.classList.add('hidden');
 }
 
 async function showSettingsView(): Promise<void> {
@@ -127,7 +129,7 @@ async function showSettingsView(): Promise<void> {
     apiKeyMessage.textContent = '';
     userDetailsMessage.textContent = '';
 
-    settingsBtn.classList.add('hidden');
+    githubLink.classList.remove('hidden');
     backBtn.classList.remove('hidden');
 }
 
@@ -638,7 +640,6 @@ async function generateCoverLetter(jobPostingText: string, retry = false): Promi
             // [users_name_and_last_name]_cover_letter_{company_name}.txt
             Note that the job description might not be in English and shouldn't be dismissed in that case!
             Always write the cover letter in the same language as the job description.
-            Do not leave any placeholders in the cover letter. Do not attempt to add any formatting to it.
         `;
 
         try {
