@@ -12,12 +12,14 @@
             color: #333;
             padding-bottom: 70px;
         }
+
         .header-container {
             position: relative;
             height: 24px;
             margin-bottom: 25px;
             background-color: #f4f4f4;
         }
+
         .icon-button {
             position: absolute;
             width: 24px;
@@ -31,36 +33,44 @@
             border: none;
             transition: transform 0.2s ease-in-out;
         }
+
         .icon-button:hover {
             transform: scale(1.3);
             background-color: transparent;
         }
+
         .icon-button svg {
             width: 24px;
             height: 24px;
             fill: #333;
         }
+
         #back-btn {
             left: 0;
         }
+
         #settings-btn {
             right: 0;
         }
+
         #github-link {
             right: 0;
         }
+
         hr {
             border: 0;
             height: 1px;
             background-color: #ccc;
             margin: 15px 0;
         }
+
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
         }
+
         .section {
             background-color: #fff;
             padding: 20px;
@@ -68,11 +78,13 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             margin-bottom: 15px;
         }
+
         label {
             display: block;
             margin-bottom: 8px;
             font-weight: bold;
         }
+
         input[type="text"],
         input[type="file"],
         textarea {
@@ -83,6 +95,7 @@
             border-radius: 4px;
             box-sizing: border-box;
         }
+
         #cover-letter-textarea {
             width: 100%;
             height: 400px;
@@ -95,6 +108,7 @@
             line-height: 1.5;
             resize: vertical;
         }
+
         button {
             background-color: #3498db;
             color: white;
@@ -106,12 +120,15 @@
             font-size: 16px;
             margin-bottom: 10px;
         }
+
         button:hover {
             background-color: #2980b9;
         }
+
         .hidden {
             display: none;
         }
+
         .loading-spinner {
             border: 4px solid #f3f3f3;
             border-radius: 50%;
@@ -121,10 +138,16 @@
             animation: spin 1s linear infinite;
             margin: 20px auto;
         }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
         }
+
         #instruction-content pre {
             background-color: #f0f0f0;
             border-left: 5px solid #ccc;
@@ -132,20 +155,24 @@
             white-space: pre-wrap;
             word-wrap: break-word;
         }
+
         .search-query-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
+
         #refresh-query-btn {
             position: static;
         }
+
         .bmc-button-container {
             position: fixed;
             bottom: 15px;
             right: 15px;
             z-index: 1000;
         }
+
         .bmc-button {
             display: flex;
             align-items: center;
@@ -157,34 +184,40 @@
             border-radius: 50px;
             font-weight: bold;
             font-size: 16px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             transition: width 0.3s ease-in-out, padding 0.3s ease-in-out;
             width: 30px;
             overflow: hidden;
             white-space: nowrap;
         }
+
         .bmc-button:hover {
-            width: 170px;
+            width: 160px;
             padding: 10px 20px;
         }
+
         .bmc-button img {
             height: 25px;
             flex-shrink: 0;
         }
+
         .bmc-button span {
             margin-left: 5px;
             opacity: 0;
             transition: opacity 0.3s ease-in-out;
         }
+
         .bmc-button:hover span {
             opacity: 1;
         }
+
         .feedback-button-container {
             position: fixed;
             bottom: 15px;
             left: 15px;
             z-index: 1000;
         }
+
         .feedback-button {
             display: flex;
             align-items: center;
@@ -196,27 +229,31 @@
             border-radius: 50px;
             font-weight: bold;
             font-size: 16px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             transition: width 0.3s ease-in-out, padding 0.3s ease-in-out;
             width: 27px;
             overflow: hidden;
             white-space: nowrap;
         }
+
         .feedback-button:hover {
-            width: 170px;
+            width: 145px;
             padding: 10px 20px;
         }
+
         .feedback-button svg {
             width: 25px;
             height: 25px;
             flex-shrink: 0;
             fill: #fff;
         }
+
         .feedback-button span {
             margin-left: 5px;
             opacity: 0;
             transition: opacity 0.3s ease-in-out;
         }
+
         .feedback-button:hover span {
             opacity: 1;
         }
@@ -225,12 +262,17 @@
 <body>
 <div class="header-container">
     <button id="back-btn" class="icon-button hidden">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" /></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/>
+        </svg>
     </button>
     <button id="settings-btn" class="icon-button">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.96 21.66,8.74L19.67,5.27C19.55,5.05 19.29,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.71,4.96 4.45,5.05 4.33,5.27L2.34,8.74C2.21,8.96 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.04 2.34,15.26L4.33,18.73C4.45,18.95 4.71,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.29,19.03 19.55,18.95 19.67,18.73L21.66,15.26C21.78,15.04 21.73,14.78 21.54,14.63L19.43,12.97Z" /></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.96 21.66,8.74L19.67,5.27C19.55,5.05 19.29,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.71,4.96 4.45,5.05 4.33,5.27L2.34,8.74C2.21,8.96 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.04 2.34,15.26L4.33,18.73C4.45,18.95 4.71,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.29,19.03 19.55,18.95 19.67,18.73L21.66,15.26C21.78,15.04 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
+        </svg>
     </button>
-    <a id="github-link" class="icon-button hidden" href="https://github.com/v1rtu0z/ai-job-search-helper" target="_blank" rel="noopener noreferrer">
+    <a id="github-link" class="icon-button hidden" href="https://github.com/v1rtu0z/ai-job-search-helper"
+       target="_blank" rel="noopener noreferrer">
         <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <title>GitHub</title>
             <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.777.418-1.305.762-1.604-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.046.138 3.006.404 2.296-1.552 3.297-1.23 3.297-1.23.645 1.653.24 2.873.105 3.176.77.84 1.235 1.91 1.235 3.22 0 4.61-2.805 5.624-5.475 5.923.42.36.81 1.096.81 2.22 0 1.606-.015 2.897-.015 3.286 0 .315.21.69.825.577C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
@@ -246,12 +288,14 @@
     <ul>
         <li>
             <p>
-                <strong>Right-click</strong> on the selected text and choose "<strong>Analyze Job Posting Fit</strong>" from the context menu.
+                <strong>Right-click</strong> on the selected text and choose "<strong>Analyze Job Posting Fit</strong>"
+                from the context menu.
             </p>
         </li>
         <li>
             <p>
-                Use the keyboard shortcut <strong>Ctrl+B</strong> (or <strong>Cmd+B</strong> on Mac) by default, but you can change this in Chrome extension settings.
+                Use the keyboard shortcut <strong>Ctrl+B</strong> (or <strong>Cmd+B</strong> on Mac) by default, but you
+                can change this in Chrome extension settings.
             </p>
         </li>
     </ul>
@@ -278,7 +322,16 @@
 
 <div id="settings-view" class="hidden">
     <div id="api-key-section" class="section">
-        <p>Please enter your GOOGLE_API_KEY to get started:</p>
+        <p>
+            Please enter your GOOGLE_API_KEY to get started.
+        </p>
+        <p>You can set up your free tier key
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">here</a>.
+        </p>
+        <p>
+            To learn more about what an API key is, click
+            <a href="https://en.wikipedia.org/wiki/API_key" target="_blank" rel="noopener noreferrer">here</a>.
+        </p>
         <label for="google-api-key">Google API Key:</label>
         <input type="text" id="google-api-key" placeholder="Enter your API key here">
         <p id="api-key-message" style="color: red; margin-top: 10px;"></p>
@@ -290,7 +343,8 @@
         <div id="resume-file-name" style="margin-bottom: 10px;"></div>
         <input type="file" id="resume-file" accept=".pdf,.txt">
         <label for="additional-details">Additional Details:</label>
-        <textarea id="additional-details" rows="4" placeholder="Information like preferred roles, industries, locations, salary ranges..."></textarea>
+        <textarea id="additional-details" rows="4"
+                  placeholder="Information like preferred roles, industries, locations, salary ranges..."></textarea>
         <p id="user-details-message" style="color: green; margin-top: 10px;"></p>
     </div>
     <button id="save-all-settings-btn">Save All Settings</button>
@@ -305,7 +359,9 @@
 
 <div class="feedback-button-container">
     <a class="feedback-button" href="mailto:nikolamandic1996@gmail.com?subject=AI%20Job%20Search%20Helper%20Feedback">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5-8-5h16zm0 12H4V8l8 5 8-5v10z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5-8-5h16zm0 12H4V8l8 5 8-5v10z"/>
+        </svg>
         <span>Send feedback</span>
     </a>
 </div>

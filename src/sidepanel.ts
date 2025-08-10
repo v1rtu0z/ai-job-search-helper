@@ -323,7 +323,7 @@ async function generateSearchQuery(forceRegenerate: boolean = false): Promise<vo
 
     instructionContent.innerHTML = `
         <br>
-        <h3>Generating a Search Query...</h3>
+        <h3>Generating a Personalized LinkedIn Search Query...</h3>
         <div class="loading-spinner"></div>
     `;
 
@@ -355,7 +355,7 @@ async function generateSearchQuery(forceRegenerate: boolean = false): Promise<vo
 
         instructionContent.innerHTML = `
             <div class="search-query-header">
-                <h3>Your Personalized Search Query</h3>
+                <h3>Your Personalized LinkedIn Search Query</h3>
                 <button id="refresh-query-btn" class="icon-button" style="right: 3%;">
                     <svg xmlns="http://www.w3.org/2000/svg"  version="1.1" width="256" height="256" viewBox="0 0 256 256" xml:space="preserve">
 <g style="stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: none; fill-rule: nonzero; opacity: 1;" transform="translate(1.4065934065934016 1.4065934065934016) scale(2.81 2.81)">
@@ -466,7 +466,6 @@ saveAllSettingsBtn.addEventListener('click', async () => {
 
 async function analyzeJobPosting(text: string, retry: boolean = false): Promise<boolean> {
     let jobPostingText = text.trim();
-    console.log('jobPostingText: ', jobPostingText);
     latestJobPostingText = jobPostingText
 
     if (!retry && jobPostingCache[jobPostingText]?.Analysis) {
