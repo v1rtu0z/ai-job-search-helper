@@ -19,6 +19,7 @@ const instructionContent = document.getElementById('instruction-content') as HTM
 const markdownOutputSection = document.getElementById('markdown-output-section') as HTMLDivElement;
 const markdownContent = document.getElementById('markdown-content') as HTMLDivElement;
 const coverLetterTextarea = document.getElementById('cover-letter-textarea') as HTMLTextAreaElement;
+const coverLetterTextareaTitle = document.getElementById('cover-letter-textarea-title') as HTMLTextAreaElement;
 
 const loadingSpinnerSection = document.getElementById('loading-spinner-section') as HTMLDivElement;
 const loadingSpinnerTitle = document.getElementById('loading-spinner-title') as HTMLDivElement;
@@ -33,22 +34,63 @@ const saveAllSettingsBtn = document.getElementById('save-all-settings-btn') as H
 const backBtn = document.getElementById('back-btn') as HTMLButtonElement;
 const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
 const retryBtn = document.getElementById('retry-btn') as HTMLButtonElement;
-const githubLink = document.getElementById('github-link') as HTMLAnchorElement;
 
-type JobAnalysisCache = {
-    'Analysis': string | null;
-    'CoverLetter': { filename: string, content: string } | null;
-};
+const resumePreviewContainer = document.getElementById('resume-preview-container') as HTMLDivElement;
+const downloadTailoredResumeBtn = document.getElementById('download-tailored-resume-btn') as HTMLButtonElement;
 
-// note: cache miss fail happen when the selected text is not the same. On LinkedIn for example, if one selects
-// everything from the company logo to the end of the job end, different stuff gets selected depending on if
-// they select from top to the bottom or from the bottom to the top.
-let jobPostingCache: Record<string, JobAnalysisCache> = {};
 let latestJobPostingText: string | null = null
 
-let currentState: 'instructions' | 'analysis' | 'cover-letter' = 'instructions';
-const stateHistory: Array<'instructions' | 'analysis' | 'cover-letter'> = [];
+let currentState: 'instructions' | 'analysis' | 'cover-letter' | 'resume-preview' = 'instructions';
+const stateHistory: Array<'instructions' | 'analysis' | 'cover-letter' | 'resume-preview'> = [];
 let cachedSearchQuery: string | null = null;
+
+const buyMeCoffeeHTML = `
+    <p> If this helps you land the job, please consider supporting the project:</p>
+    <div style="display: flex; justify-content: center; margin-top: 10px;">
+        <a href="https://buymeacoffee.com/v1rtu0z96" target="_blank" rel="noopener noreferrer" style="display: flex; align-items: center; justify-content: flex-start; padding: 10px 20px; text-decoration: none; color: #000; background-color: #FFDD00; border-radius: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); width: 160px; overflow: hidden; white-space: nowrap;">
+            <img src="https://www.buymeacoffee.com/assets/img/BMC-btn-logo.svg" alt="Buy Me a Coffee" style="height: 25px; flex-shrink: 0;">
+            <span style="margin-left: 5px; opacity: 1;">Buy me a coffee</span>
+        </a>
+    </div>
+    `
+const gotFeedbackHTML = `
+    <p>Got feedback? I'd be happy to hear it. Send me a message:</p>
+     <div style="display: flex; justify-content: center; margin-top: 10px;">
+         <a href="mailto:nikolamandic1996@gmail.com?subject=AI%20Job%20Search%20Helper%20Feedback" style="display: flex; align-items: center; text-decoration: none; color: #333; background-color: #f1f1f1; border: 1px solid #ddd; border-radius: 50px; padding: 10px 20px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="height: 25px; width: 25px; fill: #333;">
+                 <path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5-8-5h16zm0 12H4V8l8 5 8-5v10z"/>
+             </svg>
+             <span style="margin-left: 10px;">Send feedback</span>
+         </a>
+     </div>
+    `
+
+const llamaIndexHTML = `
+    <a href="https://github.com/run-llama/LlamaIndexTS" target="_blank" rel="noopener noreferrer">LlamaIndexTS</a>
+`
+const pdfJsHTML = `
+    <a href="https://github.com/mozilla/pdf.js" target="_blank" rel="noopener noreferrer">pdf.js</a>
+`
+
+const javaScriptHTML = `
+    <p>Powered in part by JavaScript, an open-source standard that
+                <a href="https://javascript.tm/" target="_blank" rel="noopener noreferrer"> Oracle should definitely release.</a>
+             </p>
+`
+const webStormHTML = `
+<p>This extension was developed using 
+    <a href="https://www.jetbrains.com/webstorm/" target="_blank" rel="noopener noreferrer">JetBrains WebStorm</a>. 
+    It's an awesome IDE for web development!
+</p>`
+const sourceCodeHTML = `
+    <p>This project is open source! 
+             <a href="https://github.com/v1rtu0z/ai-job-search-helper" target="_blank" rel="noopener noreferrer">Check out the code on GitHub.</a>
+             </p>
+`
+// todo: use when loading tailored resume
+const renderCVHTML = `
+    <a href="https://github.com/rendercv/rendercv" target="_blank" rel="noopener noreferrer">renderCV</a>
+`
 
 const converter = new showdown.Converter();
 
@@ -57,14 +99,24 @@ pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
 let globalIndex: VectorStoreIndex | null = null;
 let abortController: AbortController | null = null;
 
-interface UserSettings {
+type JobPostingCacheRecord = {
+    "CompanyName": string;
+    'Analysis': string | null;
+    'CoverLetter': { filename: string, content: string } | null;
+    'TailoredResume': { filename: string, content: string } | null;
+};
+// note: cache miss fail happen when the selected text is not the same. On LinkedIn for example, if one selects
+// everything from the company logo to the end of the job end, different stuff gets selected depending on if
+// they select from top to the bottom or from the bottom to the top.
+interface UserRelevantData {
     googleApiKey?: string;
     resumeFileName?: string;
     resumeFileContent?: string;
     additionalDetails?: string;
+    jobPostingCache?: Record<string, JobPostingCacheRecord>;
 }
 
-function updateState(newState: 'instructions' | 'analysis' | 'cover-letter', isBackNavigation: boolean = false): void {
+function updateState(newState: 'instructions' | 'analysis' | 'cover-letter' | 'resume-preview', isBackNavigation: boolean = false): void {
     if (currentState !== newState) {
         if (!isBackNavigation) {
             stateHistory.push(currentState);
@@ -88,8 +140,10 @@ function hideAllSections(): void {
     retryBtn.classList.add('hidden');
     markdownContent.classList.add('hidden');
     coverLetterTextarea.classList.add('hidden');
+    coverLetterTextareaTitle.classList.add('hidden');
     settingsBtn.classList.add('hidden');
-    githubLink.classList.add('hidden');
+    resumePreviewContainer.classList.add('hidden');
+    downloadTailoredResumeBtn.classList.add('hidden');
 }
 
 function showInstructionDisplay(isBackNavigation: boolean = false): void {
@@ -102,9 +156,9 @@ function showInstructionDisplay(isBackNavigation: boolean = false): void {
     generateSearchQuery();
 }
 
-function showLoadingSpinner(text: string = "Processing...", isBackNavigation: boolean = false): void {
+function showLoadingSpinner(html: string = "Processing..."): void {
     hideAllSections();
-    loadingSpinnerTitle.textContent = text;
+    loadingSpinnerTitle.innerHTML = html;
     loadingSpinnerSection.classList.remove('hidden');
     backBtn.classList.remove('hidden');
 }
@@ -119,17 +173,15 @@ async function showSettingsView(): Promise<void> {
     apiKeySection.classList.remove('hidden');
     userDetailsSection.classList.remove('hidden');
 
-    const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
-    const userSettings = result.userSettings || {};
+    const userRelevantData = await fetchUserRelevantData();
 
-    googleApiKeyInput.value = userSettings.googleApiKey || '';
-    additionalDetailsTextarea.value = userSettings.additionalDetails || '';
-    resumeFileNameDiv.textContent = userSettings.resumeFileName ? `Current resume: ${userSettings.resumeFileName}` : 'No resume uploaded yet.';
+    googleApiKeyInput.value = userRelevantData.googleApiKey || '';
+    additionalDetailsTextarea.value = userRelevantData.additionalDetails || '';
+    resumeFileNameDiv.textContent = userRelevantData.resumeFileName ? `Current resume: ${userRelevantData.resumeFileName}` : 'No resume uploaded yet.';
     resumeFileInput.value = '';
     apiKeyMessage.textContent = '';
     userDetailsMessage.textContent = '';
 
-    githubLink.classList.remove('hidden');
     backBtn.classList.remove('hidden');
 }
 
@@ -138,10 +190,10 @@ async function retryLastAction(jobPostingText: string) {
         analyzeJobPosting(jobPostingText, true);
     } else if (currentState === 'cover-letter' && jobPostingText) {
         generateCoverLetter(jobPostingText, true);
-    }
+    } // todo add a case for resume tailoring
 }
 
-function showMarkdown(markdown: string, jobPostingText: string, isBackNavigation: boolean = false): void {
+async function showMarkdown(markdown: string, jobPostingText: string, isBackNavigation: boolean = false) {
     if (abortController) {
         abortController = null;
     }
@@ -154,10 +206,19 @@ function showMarkdown(markdown: string, jobPostingText: string, isBackNavigation
 
     retryBtn.classList.remove('hidden');
 
-    if (!jobPostingCache[jobPostingText]) {
-        jobPostingCache[jobPostingText] = { Analysis: null, CoverLetter: null };
+    const userRelevantData = await fetchUserRelevantData();
+
+    if (!userRelevantData.jobPostingCache[jobPostingText]) {
+        userRelevantData.jobPostingCache[jobPostingText] = {
+            Analysis: null,
+            CoverLetter: null,
+            CompanyName: null,
+            TailoredResume: null
+        };
     }
-    jobPostingCache[jobPostingText].Analysis = markdown;
+    userRelevantData.jobPostingCache[jobPostingText].Analysis = markdown;
+    console.log('Current job posting cache keys:', Object.keys(userRelevantData.jobPostingCache));
+    await chrome.storage.local.set({userRelevantData});
 
     updateState('analysis', isBackNavigation);
     backBtn.classList.remove('hidden');
@@ -186,7 +247,7 @@ function showErrorOutput(message: string, isBackNavigation: boolean = false): vo
     settingsBtn.classList.remove('hidden');
 }
 
-function showCoverLetterOutput(filename: string, content: string, jobPostingText: string, isBackNavigation: boolean = false): void {
+async function showCoverLetterOutput(filename: string, content: string, jobPostingText: string, isBackNavigation: boolean = false) {
     if (abortController) {
         abortController = null;
     }
@@ -205,10 +266,19 @@ function showCoverLetterOutput(filename: string, content: string, jobPostingText
         retryLastAction(jobPostingText);
     });
 
-    if (!jobPostingCache[jobPostingText]) {
-        jobPostingCache[jobPostingText] = { Analysis: null, CoverLetter: null };
+    const userRelevantData = await fetchUserRelevantData();
+
+    if (!userRelevantData.jobPostingCache[jobPostingText]) {
+        userRelevantData.jobPostingCache[jobPostingText] = {
+            Analysis: null,
+            CoverLetter: null,
+            CompanyName: null,
+            TailoredResume: null
+        };
     }
-    jobPostingCache[jobPostingText].CoverLetter = { filename, content };
+    userRelevantData.jobPostingCache[jobPostingText].CoverLetter = {filename, content};
+    console.log('Current job posting cache keys:', Object.keys(userRelevantData.jobPostingCache));
+    await chrome.storage.local.set({userRelevantData});
 
     updateState('cover-letter', isBackNavigation);
     downloadCoverLetterBtn.onclick = () => {
@@ -224,13 +294,50 @@ function showCoverLetterOutput(filename: string, content: string, jobPostingText
     };
 }
 
-function handleBackButtonClick(): void {
+async function showResumePreview(tailoredResumePath: string, isBackNavigation: boolean = false) {
+    hideAllSections();
+    backBtn.classList.remove('hidden');
+    settingsBtn.classList.remove('hidden');
+
+    markdownOutputSection.classList.remove('hidden');
+    resumePreviewContainer.classList.remove('hidden');
+    generateCoverLetterBtn.classList.remove('hidden');
+    downloadTailoredResumeBtn.classList.remove('hidden');
+    retryBtn.classList.remove('hidden');
+
+    updateState('resume-preview', isBackNavigation);
+
+    const loadingTask = pdfjs.getDocument(tailoredResumePath);
+    const pdf = await loadingTask.promise;
+
+    resumePreviewContainer.innerHTML = '';
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const scale = 0.9;
+        const viewport = page.getViewport({scale: scale});
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+            canvasContext: context,
+            viewport: viewport,
+        };
+        await page.render(renderContext).promise;
+        resumePreviewContainer.appendChild(canvas);
+    }
+}
+
+async function handleBackButtonClick() {
     if (abortController) {
         abortController.abort();
         abortController = null;
     }
 
-    let previousState: "instructions" | "analysis" | "cover-letter";
+    let previousState: "instructions" | "analysis" | "cover-letter" | "resume-preview";
     if (settingsView.classList.contains('hidden')) {
         previousState = stateHistory.pop();
     } else {
@@ -239,17 +346,22 @@ function handleBackButtonClick(): void {
 
     console.log(`Back button clicked. Previous state: ${previousState}, New history:`, stateHistory);
 
+    let userRelevantData = await fetchUserRelevantData();
+
     switch (previousState) {
         case 'analysis':
-            if (latestJobPostingText && jobPostingCache[latestJobPostingText]?.Analysis) {
-                showMarkdown(jobPostingCache[latestJobPostingText].Analysis!, latestJobPostingText, true);
+            if (latestJobPostingText && userRelevantData.jobPostingCache[latestJobPostingText]?.Analysis) {
+                showMarkdown(userRelevantData.jobPostingCache[latestJobPostingText].Analysis!, latestJobPostingText, true);
             } else {
                 showInstructionDisplay(true);
             }
             break;
+        case 'resume-preview':
+            tailorResume(true);
+            break;
         case 'cover-letter':
-            if (latestJobPostingText && jobPostingCache[latestJobPostingText]?.CoverLetter) {
-                const {filename, content} = jobPostingCache[latestJobPostingText].CoverLetter!;
+            if (latestJobPostingText && userRelevantData.jobPostingCache[latestJobPostingText]?.CoverLetter) {
+                const {filename, content} = userRelevantData.jobPostingCache[latestJobPostingText].CoverLetter!;
                 showCoverLetterOutput(filename, content, latestJobPostingText, true);
             } else {
                 showInstructionDisplay(true);
@@ -278,9 +390,8 @@ async function getPdfText(file: File): Promise<string> {
 
 async function initializeSidePanel(): Promise<void> {
     try {
-        const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
-        const userSettings = result.userSettings || {};
-        if (userSettings.googleApiKey && userSettings.resumeFileName) {
+        const userRelevantData = await fetchUserRelevantData();
+        if (userRelevantData.googleApiKey && userRelevantData.resumeFileName) {
             showInstructionDisplay();
         } else {
             showSettingsView();
@@ -300,20 +411,24 @@ async function create_index_from_data(fileContent: string, additionalDetails: st
     return await VectorStoreIndex.fromDocuments(documents);
 }
 
-async function generateSearchQuery(forceRegenerate: boolean = false): Promise<void> {
-    if (!forceRegenerate && cachedSearchQuery) {
-        instructionContent.innerHTML = `
+const linkedinSearchQueryHTML = `
             <div class="search-query-header">
-                <h3>Your Personalized Search Query</h3>
                 <button id="refresh-query-btn" class="icon-button" style="right: 3%;">
-                    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="256" height="256" viewBox="0 0 256 256" xml:space="preserve">
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" xml:space="preserve">
 <g style="stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: none; fill-rule: nonzero; opacity: 1;" transform="translate(1.4065934065934016 1.4065934065934016) scale(2.81 2.81)">
 	<path d="M 81.521 31.109 c -0.86 -1.73 -2.959 -2.438 -4.692 -1.575 c -1.73 0.86 -2.436 2.961 -1.575 4.692 c 2.329 4.685 3.51 9.734 3.51 15.01 C 78.764 67.854 63.617 83 45 83 S 11.236 67.854 11.236 49.236 c 0 -16.222 11.501 -29.805 26.776 -33.033 l -3.129 4.739 c -1.065 1.613 -0.62 3.784 0.992 4.85 c 0.594 0.392 1.264 0.579 1.926 0.579 c 1.136 0 2.251 -0.553 2.924 -1.571 l 7.176 -10.87 c 0.001 -0.001 0.001 -0.002 0.002 -0.003 l 0.018 -0.027 c 0.063 -0.096 0.106 -0.199 0.159 -0.299 c 0.049 -0.093 0.108 -0.181 0.149 -0.279 c 0.087 -0.207 0.152 -0.419 0.197 -0.634 c 0.009 -0.041 0.008 -0.085 0.015 -0.126 c 0.031 -0.182 0.053 -0.364 0.055 -0.547 c 0 -0.014 0.004 -0.028 0.004 -0.042 c 0 -0.066 -0.016 -0.128 -0.019 -0.193 c -0.008 -0.145 -0.018 -0.288 -0.043 -0.431 c -0.018 -0.097 -0.045 -0.189 -0.071 -0.283 c -0.032 -0.118 -0.065 -0.236 -0.109 -0.35 c -0.037 -0.095 -0.081 -0.185 -0.125 -0.276 c -0.052 -0.107 -0.107 -0.211 -0.17 -0.313 c -0.054 -0.087 -0.114 -0.168 -0.175 -0.25 c -0.07 -0.093 -0.143 -0.183 -0.223 -0.27 c -0.074 -0.08 -0.153 -0.155 -0.234 -0.228 c -0.047 -0.042 -0.085 -0.092 -0.135 -0.132 L 36.679 0.775 c -1.503 -1.213 -3.708 -0.977 -4.921 0.53 c -1.213 1.505 -0.976 3.709 0.53 4.921 l 3.972 3.2 C 17.97 13.438 4.236 29.759 4.236 49.236 C 4.236 71.714 22.522 90 45 90 s 40.764 -18.286 40.764 -40.764 C 85.764 42.87 84.337 36.772 81.521 31.109 z" style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); fill-rule: nonzero; opacity: 1;" transform=" matrix(1 0 0 1 0 0) " stroke-linecap="round"/>
 </g>
 </svg>
-                </button>
+                                        </button>
+                <h3>Your Personalized Search Query</h3>
             </div>
             <p>Here's a personalized LinkedIn search query, copy and paste it into the LinkedIn job search bar to get you started:</p>
+`
+
+async function generateSearchQuery(forceRegenerate: boolean = false): Promise<void> {
+    if (!forceRegenerate && cachedSearchQuery) {
+        instructionContent.innerHTML = `
+                ${linkedinSearchQueryHTML}
             <pre><code>${cachedSearchQuery}</code></pre>
             <p><strong>Tip:</strong> Extending the query with more specific terms will yield better results!</p>
         `;
@@ -328,9 +443,8 @@ async function generateSearchQuery(forceRegenerate: boolean = false): Promise<vo
     `;
 
     try {
-        const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
-        const userSettings = result.userSettings || {};
-        const {googleApiKey, resumeFileContent, additionalDetails} = userSettings;
+        const userRelevantData = await fetchUserRelevantData();
+        const {googleApiKey, resumeFileContent, additionalDetails} = userRelevantData;
 
         if (!googleApiKey || !resumeFileContent) {
             instructionContent.innerHTML = '<h3>Personalized Query</h3><p>Please go to settings to provide your API key and upload your resume to get a personalized LinkedIn search query.</p>';
@@ -354,17 +468,7 @@ async function generateSearchQuery(forceRegenerate: boolean = false): Promise<vo
         cachedSearchQuery = response.text.trim();
 
         instructionContent.innerHTML = `
-            <div class="search-query-header">
-                <h3>Your Personalized LinkedIn Search Query</h3>
-                <button id="refresh-query-btn" class="icon-button" style="right: 3%;">
-                    <svg xmlns="http://www.w3.org/2000/svg"  version="1.1" width="256" height="256" viewBox="0 0 256 256" xml:space="preserve">
-<g style="stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: none; fill-rule: nonzero; opacity: 1;" transform="translate(1.4065934065934016 1.4065934065934016) scale(2.81 2.81)">
-	<path d="M 81.521 31.109 c -0.86 -1.73 -2.959 -2.438 -4.692 -1.575 c -1.73 0.86 -2.436 2.961 -1.575 4.692 c 2.329 4.685 3.51 9.734 3.51 15.01 C 78.764 67.854 63.617 83 45 83 S 11.236 67.854 11.236 49.236 c 0 -16.222 11.501 -29.805 26.776 -33.033 l -3.129 4.739 c -1.065 1.613 -0.62 3.784 0.992 4.85 c 0.594 0.392 1.264 0.579 1.926 0.579 c 1.136 0 2.251 -0.553 2.924 -1.571 l 7.176 -10.87 c 0.001 -0.001 0.001 -0.002 0.002 -0.003 l 0.018 -0.027 c 0.063 -0.096 0.106 -0.199 0.159 -0.299 c 0.049 -0.093 0.108 -0.181 0.149 -0.279 c 0.087 -0.207 0.152 -0.419 0.197 -0.634 c 0.009 -0.041 0.008 -0.085 0.015 -0.126 c 0.031 -0.182 0.053 -0.364 0.055 -0.547 c 0 -0.014 0.004 -0.028 0.004 -0.042 c 0 -0.066 -0.016 -0.128 -0.019 -0.193 c -0.008 -0.145 -0.018 -0.288 -0.043 -0.431 c -0.018 -0.097 -0.045 -0.189 -0.071 -0.283 c -0.032 -0.118 -0.065 -0.236 -0.109 -0.35 c -0.037 -0.095 -0.081 -0.185 -0.125 -0.276 c -0.052 -0.107 -0.107 -0.211 -0.17 -0.313 c -0.054 -0.087 -0.114 -0.168 -0.175 -0.25 c -0.07 -0.093 -0.143 -0.183 -0.223 -0.27 c -0.074 -0.08 -0.153 -0.155 -0.234 -0.228 c -0.047 -0.042 -0.085 -0.092 -0.135 -0.132 L 36.679 0.775 c -1.503 -1.213 -3.708 -0.977 -4.921 0.53 c -1.213 1.505 -0.976 3.709 0.53 4.921 l 3.972 3.2 C 17.97 13.438 4.236 29.759 4.236 49.236 C 4.236 71.714 22.522 90 45 90 s 40.764 -18.286 40.764 -40.764 C 85.764 42.87 84.337 36.772 81.521 31.109 z" style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); fill-rule: nonzero; opacity: 1;" transform=" matrix(1 0 0 1 0 0) " stroke-linecap="round"/>
-</g>
-</svg>
-                </button>
-            </div>
-            <p>Here's a personalized LinkedIn search query, copy and paste it into the LinkedIn job search bar to get you started:</p>
+                ${linkedinSearchQueryHTML}
             <pre><code>${cachedSearchQuery}</code></pre>
             <p><strong>Tip:</strong> Extending the query with more specific terms will yield better results!</p>
         `;
@@ -388,10 +492,9 @@ saveAllSettingsBtn.addEventListener('click', async () => {
         apiKeyMessage.textContent = '';
         userDetailsMessage.textContent = '';
 
-        const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
-        const userSettings = result.userSettings || {};
-        const oldFileContent = userSettings.resumeFileContent;
-        const oldAdditionalDetails = userSettings.additionalDetails;
+        const userRelevantData = await fetchUserRelevantData();
+        const oldFileContent = userRelevantData.resumeFileContent;
+        const oldAdditionalDetails = userRelevantData.additionalDetails;
 
         if (!apiKey) {
             apiKeyMessage.textContent = 'API Key cannot be empty.';
@@ -399,7 +502,7 @@ saveAllSettingsBtn.addEventListener('click', async () => {
             return;
         }
 
-        userSettings.googleApiKey = apiKey;
+        userRelevantData.googleApiKey = apiKey;
 
         let newResumeUploaded = false;
         if (file) {
@@ -423,19 +526,17 @@ saveAllSettingsBtn.addEventListener('click', async () => {
                 return;
             }
 
-            userSettings.resumeFileName = file.name;
-            userSettings.resumeFileContent = fileContent;
-        } else if (!userSettings.resumeFileName) {
+            userRelevantData.resumeFileName = file.name;
+            userRelevantData.resumeFileContent = fileContent;
+        } else if (!userRelevantData.resumeFileName) {
             userDetailsMessage.textContent = 'A resume file is mandatory.';
             userDetailsMessage.style.color = 'red';
             return;
         }
 
-        userSettings.additionalDetails = additionalDetails;
+        userRelevantData.additionalDetails = additionalDetails;
 
-        await chrome.storage.local.set({userSettings});
-
-        if (newResumeUploaded || (oldFileContent !== userSettings.resumeFileContent) || (oldAdditionalDetails !== userSettings.additionalDetails)) {
+        if (newResumeUploaded || (oldFileContent !== userRelevantData.resumeFileContent) || (oldAdditionalDetails !== userRelevantData.additionalDetails)) {
             Settings.llm = llamaindexGoogle.gemini({
                 apiKey: apiKey,
                 model: llamaindexGoogle.GEMINI_MODEL.GEMINI_2_5_FLASH_PREVIEW,
@@ -443,13 +544,17 @@ saveAllSettingsBtn.addEventListener('click', async () => {
             Settings.embedModel = new llamaindexGoogle.GeminiEmbedding({
                 apiKey: apiKey,
             });
-            globalIndex = await create_index_from_data(userSettings.resumeFileContent!, userSettings.additionalDetails || '');
+            globalIndex = await create_index_from_data(userRelevantData.resumeFileContent!, userRelevantData.additionalDetails || '');
             cachedSearchQuery = null;
         }
 
         userDetailsMessage.textContent = 'All data saved successfully!';
         userDetailsMessage.style.color = 'green';
-        jobPostingCache = {};
+
+        userRelevantData.jobPostingCache = {};
+
+        console.log('Current job posting cache keys:', Object.keys(userRelevantData.jobPostingCache));
+        await chrome.storage.local.set({userRelevantData});
 
         setTimeout(() => {
             showInstructionDisplay();
@@ -464,17 +569,46 @@ saveAllSettingsBtn.addEventListener('click', async () => {
     }
 });
 
+async function fetchUserRelevantData() {
+    const result: { userRelevantData?: UserRelevantData } = await chrome.storage.local.get(['userRelevantData']);
+    return result.userRelevantData || {};
+}
+
 async function analyzeJobPosting(text: string, retry: boolean = false): Promise<boolean> {
-    let jobPostingText = text.trim();
+    let jobPostingText = text.trim().replace(/\n/g, ' ');
+    if (jobPostingText.length === 0) {
+        console.log('Empty job posting text.');
+        return false;
+    }
     latestJobPostingText = jobPostingText
 
-    if (!retry && jobPostingCache[jobPostingText]?.Analysis) {
+    const userRelevantData = await fetchUserRelevantData();
+
+    // fixme: this fails on linkedin sometimes because it adds some extra text
+    if (!retry && userRelevantData.jobPostingCache[jobPostingText]?.Analysis) {
         console.log("Serving cached analysis.");
-        showMarkdown(jobPostingCache[jobPostingText].Analysis!, jobPostingText);
+        showMarkdown(userRelevantData.jobPostingCache[jobPostingText].Analysis!, jobPostingText);
         return true;
     }
 
-    showLoadingSpinner("Analyzing job posting...");
+    const messages = [
+        `<p>Analyzing job posting with the help of
+            <a href="https://github.com/showdownjs/showdown" target="_blank" rel="noopener noreferrer">Showdown</a>,
+            an amazing open source Markdown converter tool...
+        </p>`,
+        `<p>Analyzing job posting with the help of ${pdfJsHTML}, an amazing open source pdf tool...</p>`,
+        `<p>Analyzing job posting with the help of ${llamaIndexHTML}, an amazing open source LLM tool...</p>`,
+        `<p>Analyzing job posting...</p>${javaScriptHTML}`,
+        `<p>Analyzing job posting...</p>${webStormHTML}`,
+        `<p>Analyzing job posting...</p>${buyMeCoffeeHTML}`,
+        `<p>Analyzing job posting...</p>${gotFeedbackHTML}`,
+        `<p>Analyzing job posting...</p>${sourceCodeHTML}`
+    ]
+
+    showLoadingSpinner(
+        messages[Math.floor(Math.random() * messages.length)]
+    );
+
     if (abortController) {
         abortController.abort();
     }
@@ -482,9 +616,7 @@ async function analyzeJobPosting(text: string, retry: boolean = false): Promise<
     const signal = abortController.signal;
 
     try {
-        const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
-        const userSettings = result.userSettings || {};
-        const {googleApiKey, resumeFileContent} = userSettings;
+        const {googleApiKey, resumeFileContent} = userRelevantData;
 
         if (signal.aborted) return false;
 
@@ -505,7 +637,7 @@ async function analyzeJobPosting(text: string, retry: boolean = false): Promise<
             Settings.embedModel = new llamaindexGoogle.GeminiEmbedding({
                 apiKey: googleApiKey,
             });
-            globalIndex = await create_index_from_data(resumeFileContent, userSettings.additionalDetails || '');
+            globalIndex = await create_index_from_data(resumeFileContent, userRelevantData.additionalDetails || '');
         }
 
         if (signal.aborted) return false;
@@ -526,6 +658,7 @@ async function analyzeJobPosting(text: string, retry: boolean = false): Promise<
             Provides clear, actionable advice on how the user could tailor their resume or cover letter to better highlight their fit for this specific job.
             If the provided "Job Description" text is not a job description, return a simple markdown message that says: "### Not a Job Description Found
              The selected text does not appear to be a job description. Please select a job description and try again."
+            Do the same in case of incomplete job descriptions, example being just job titles, or job titles with the company names and such.
             Note that the job description might not be in English and shouldn't be dismissed in that case!
         `;
 
@@ -569,14 +702,28 @@ Please check your API key and network connection, then try again.`;
 }
 
 async function generateCoverLetter(jobPostingText: string, retry = false): Promise<boolean> {
-    if (!retry && jobPostingText && jobPostingCache[jobPostingText]?.CoverLetter) {
+    const userRelevantData = await fetchUserRelevantData();
+
+    if (!retry && jobPostingText && userRelevantData.jobPostingCache[jobPostingText]?.CoverLetter) {
         console.log("Serving cached cover letter.");
-        const { filename, content } = jobPostingCache[jobPostingText].CoverLetter!;
+        const {filename, content} = userRelevantData.jobPostingCache[jobPostingText].CoverLetter!;
         showCoverLetterOutput(filename, content, jobPostingText);
         return true;
     }
 
-    showLoadingSpinner("Generating a Cover Letter");
+    const messages = [
+        `<p>Generating a Cover Letter with the help of ${llamaIndexHTML}, an amazing open source LLM tool...</p>`,
+        `<p>Generating a Cover Letter with the help of ${pdfJsHTML}, an amazing open source pdf tool...</p>`,
+        `<p>Generating a Cover Letter...</p>${javaScriptHTML}`,
+        `<p>Generating a Cover Letter...</p>${webStormHTML}`,
+        `<p>Generating a Cover Letter...</p>${buyMeCoffeeHTML}`,
+        `<p>Generating a Cover Letter...</p>${gotFeedbackHTML}`,
+        `<p>Generating a Cover Letter...</p>${sourceCodeHTML}`
+    ]
+
+    showLoadingSpinner(
+        messages[Math.floor(Math.random() * messages.length)]
+    );
     if (abortController) {
         abortController.abort();
     }
@@ -584,9 +731,7 @@ async function generateCoverLetter(jobPostingText: string, retry = false): Promi
     const signal = abortController.signal;
 
     try {
-        const result: { userSettings?: UserSettings } = await chrome.storage.local.get(['userSettings']);
-        const userSettings = result.userSettings || {};
-        const {googleApiKey, resumeFileContent} = userSettings;
+        const {googleApiKey, resumeFileContent} = userRelevantData;
 
         if (signal.aborted) return false;
 
@@ -607,7 +752,7 @@ async function generateCoverLetter(jobPostingText: string, retry = false): Promi
             Settings.embedModel = new llamaindexGoogle.GeminiEmbedding({
                 apiKey: googleApiKey,
             });
-            globalIndex = await create_index_from_data(resumeFileContent, userSettings.additionalDetails || '');
+            globalIndex = await create_index_from_data(resumeFileContent, userRelevantData.additionalDetails || '');
         }
 
         if (signal.aborted) return false;
@@ -618,7 +763,23 @@ async function generateCoverLetter(jobPostingText: string, retry = false): Promi
         });
 
         let companyNamePrompt = `Based on this job description: ${jobPostingText} what is the name of the company? Return just the name and nothing else`;
-        let companyName = (await llm.complete({prompt: companyNamePrompt})).text;
+        let companyName: string | null = null;
+        if (userRelevantData.jobPostingCache[jobPostingText]?.CompanyName) {
+            companyName = userRelevantData.jobPostingCache[jobPostingText].CompanyName;
+        } else {
+            companyName = (await llm.complete({prompt: companyNamePrompt})).text;
+            if (!userRelevantData.jobPostingCache[jobPostingText]) {
+                userRelevantData.jobPostingCache[jobPostingText] = {
+                    Analysis: null,
+                    CoverLetter: null,
+                    CompanyName: null,
+                    TailoredResume: null
+                };
+            }
+            userRelevantData.jobPostingCache[jobPostingText].CompanyName = companyName;
+            console.log('Current job posting cache keys:', Object.keys(userRelevantData.jobPostingCache));
+            await chrome.storage.local.set({userRelevantData});
+        }
 
         if (signal.aborted) return false;
 
@@ -702,13 +863,22 @@ chrome.runtime.onMessage.addListener((message: {
     return false;
 });
 
-function tailorResume() {
+function tailorResume(isBackNavigation: boolean = false) {
     return () => {
-        console.log('Tailor Resume button clicked!');
+        // TODO: add prompts for filename and yaml content and logic for using rendercv to
+        //  generate a resume pdf from the yaml and pass the path to that pdf to showResumePreview
+        showResumePreview('file:///home/nikola/Downloads/personal/Nikola_Mandic_resume.pdf', isBackNavigation);
     };
 }
 
+function downloadTailoredResume(): void {
+    // TODO: Add logic for downloading the tailored resume here
+    console.log('Download as tailored_resume.pdf!');
+}
+
+
 tailorResumeBtn.addEventListener('click', tailorResume());
+downloadTailoredResumeBtn.addEventListener('click', downloadTailoredResume);
 
 backBtn.addEventListener('click', handleBackButtonClick);
 settingsBtn.addEventListener('click', showSettingsView);
