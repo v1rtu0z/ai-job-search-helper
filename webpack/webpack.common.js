@@ -1,8 +1,8 @@
 const path = require('path');
+const Dotenv = require('dotenv-webpack');
 const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
-    // Entry points for your extension's scripts
     entry: {
         service_worker: path.resolve(__dirname, '..', 'src', 'service-worker.ts'),
         sidepanel: path.resolve(__dirname, '..', 'src', 'sidepanel.ts'),
@@ -30,12 +30,13 @@ module.exports = {
     },
     // Plugins for copying static assets and other tasks
     plugins: [
+        new Dotenv(),
         new CopyPlugin({
             patterns: [
                 // Copy your manifest.json to the root of the dist folder (relative to output.path)
-                { from: 'manifest.json', to: './manifest.json' },
+                {from: 'manifest.json', to: './manifest.json'},
                 // Copy your HTML files to the root of the dist folder
-                { from: 'sidepanel.html', to: './sidepanel.html' },
+                {from: 'sidepanel.html', to: './sidepanel.html'},
                 {
                     from: 'src/showdown.js',
                     to: 'js/showdown.js'
@@ -54,7 +55,8 @@ module.exports = {
                 },
                 // { from: 'options.html', to: './options.html' },
                 // Copy images to a subfolder in dist
-                { from: 'images', to: './images' },
+                {from: 'images', to: './images'},
+                {from: '.env', to: '.env'},
                 // Add any other static assets here
             ],
         }),
