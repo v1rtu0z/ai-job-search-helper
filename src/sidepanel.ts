@@ -44,7 +44,10 @@ async function showCoverLetter(filename: string, content: string, isBack = false
     els.coverLetterTextarea.value = content;
     toggle(els.coverLetterTextarea, true);
     toggle(els.downloadCoverLetterBtn, true);
-    els.downloadCoverLetterBtn.textContent = `Download as ${filename}`;
+    const textSpan = els.downloadCoverLetterBtn.querySelector('span');
+    if (textSpan) {
+        textSpan.textContent = `Download as ${filename}`;
+    }
 
     toggle(els.backBtn, true);
     toggle(els.settingsBtn, true);
@@ -69,7 +72,10 @@ export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer
 
     if (pdfBuffer && pdfBuffer.byteLength > 0) {
         toggle(els.downloadTailoredResumeBtn, true);
-        els.downloadTailoredResumeBtn.textContent = `Download as ${filename}`;
+        const textSpan = els.downloadTailoredResumeBtn.querySelector('span');
+        if (textSpan) {
+            textSpan.textContent = `Download as ${filename}`;
+        }
 
         const blob = new Blob([pdfBuffer], {type: 'application/pdf'});
 
@@ -179,7 +185,7 @@ async function onGenerateCoverLetter(jobId: string, isRetry = false) {
 
         console.log('Generating cover letter for job ID:', jobId);
         const {content} = await serverComms.generateCoverLetter(jobId, abortController.signal);
-        const filename = `${resumeJsonData.personal.full_name}cover_letter_${jobPostingCache[jobId].CompanyName}.txt`;
+        const filename = `${resumeJsonData.personal.full_name}_cover_letter_${jobPostingCache[jobId].CompanyName}.txt`;
         await updateJobCache(jobId, r => {
             r.CoverLetter = {filename, content};
         });
