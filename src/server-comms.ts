@@ -1,6 +1,7 @@
 import {getUserData} from "./storage";
 import {els} from "./dom";
 import {showError, ViewState} from "./state";
+import { jwtDecode } from 'jwt-decode';
 
 declare var process: {
     env: {
@@ -11,6 +12,13 @@ declare var process: {
 
 const API_BASE_URL: string = process.env.API_BASE_URL;
 const EXTENSION_SECRET_KEY: string = process.env.EXTENSION_SECRET_KEY;
+let JWT_TOKEN: string | null = null;
+
+const RATE_LIMIT_ERROR_MESSAGE = `### Rate Limit Exceeded
+It looks like you've used the service a lot in a short amount of time! To help with the costs of cloud compute and AI APIs, we've set usage limits.
+
+Please consider supporting the project to help us increase these limits.
+Thank you for your understanding!`;
 
 /**
  * Authenticates with the server to get a temporary JWT token.
@@ -26,6 +34,12 @@ async function authenticate(): Promise<string | null> {
             },
             body: JSON.stringify({client_secret: EXTENSION_SECRET_KEY})
         });
+
+        if (response.status === 429) {
+            // Show the rate limit message directly
+            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.Instructions);
+            return null;
+        }
 
         if (!response.ok) {
             console.error(`Authentication failed with status: ${response.status}`);
@@ -43,10 +57,15 @@ async function authenticate(): Promise<string | null> {
 
 // Helper to get the auth token and user's API key
 async function getAuthHeadersAndBody(data: any) {
-    const token = await authenticate();
-    if (!token) {
-        throw new Error("Failed to authenticate with the server.");
+    // Check if the JWT_TOKEN exists and is not expired
+    if (!JWT_TOKEN || isTokenExpired(JWT_TOKEN)) {
+        const token = await authenticate();
+        if (!token) {
+            throw new Error("Failed to authenticate with the server.");
+        }
+        JWT_TOKEN = token;
     }
+
     const {googleApiKey} = await getUserData();
     const body = {
         ...data,
@@ -56,10 +75,24 @@ async function getAuthHeadersAndBody(data: any) {
     return {
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${JWT_TOKEN}`
         },
         body: JSON.stringify(body)
     };
+}
+
+// Helper function to check if a JWT token is expired
+function isTokenExpired(token: string): boolean {
+    if (!token) return true;
+    try {
+        const { exp } = jwtDecode(token);
+        // The exp field is a Unix timestamp (in seconds)
+        const currentTime = Date.now() / 1000;
+        return exp < currentTime;
+    } catch (error) {
+        console.error("Error decoding token:", error);
+        return true;
+    }
 }
 
 export async function getResumeJson(resumeFileContent: string, additionalDetails: string): Promise<{
@@ -77,6 +110,11 @@ export async function getResumeJson(resumeFileContent: string, additionalDetails
             headers,
             body
         });
+
+        if (response.status === 429) {
+            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.ResumePreview);
+            return;
+        }
 
         if (!response.ok) {
             const errorData = await response.json();
@@ -103,6 +141,11 @@ export async function generateSearchQuery(): Promise<string> {
             body
         });
 
+        if (response.status === 429) {
+            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.Instructions);
+            return;
+        }
+
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Failed to generate search query from server.');
@@ -127,14 +170,14 @@ export async function analyzeJobPosting(jobPostingText: string, signal: AbortSig
     companyName: string,
     jobAnalysis: string
 }> {
-    const {resumeJsonData} = await getUserData();
-    const {headers, body} = await getAuthHeadersAndBody({
-        job_posting_text: jobPostingText,
-        resume_json_data: JSON.stringify(resumeJsonData)
-    });
-
+    let jobId: string | null = null;
     try {
         if (signal.aborted) return;
+        const {resumeJsonData} = await getUserData();
+        const {headers, body} = await getAuthHeadersAndBody({
+            job_posting_text: jobPostingText,
+            resume_json_data: JSON.stringify(resumeJsonData)
+        });
 
         const response = await fetch(`${API_BASE_URL}/analyze-job-posting`, {
             method: 'POST',
@@ -144,14 +187,20 @@ export async function analyzeJobPosting(jobPostingText: string, signal: AbortSig
 
         if (signal.aborted) return;
 
+        if (response.status === 429) {
+            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.Analysis);
+            return;
+        }
+
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Failed to analyze job posting from server.');
         }
 
         const data = await response.json();
+        jobId = data.job_id;
         return {
-            jobId: data.job_id,
+            jobId: jobId,
             companyName: data.company_name,
             jobAnalysis: data.job_analysis,
         };
@@ -168,14 +217,13 @@ Please check your API key and network connection, then try again.`;
 export async function generateCoverLetter(jobId: string, signal: AbortSignal): Promise<{
     content: string
 }> {
-    const {resumeJsonData, jobPostingCache} = await getUserData();
-    const {headers, body} = await getAuthHeadersAndBody({
-        job_posting_text: jobPostingCache[jobId].jobPostingText,
-        resume_json_data: JSON.stringify(resumeJsonData)
-    });
-
     try {
         if (signal.aborted) return;
+        const {resumeJsonData, jobPostingCache} = await getUserData();
+        const {headers, body} = await getAuthHeadersAndBody({
+            job_posting_text: jobPostingCache[jobId].jobPostingText,
+            resume_json_data: JSON.stringify(resumeJsonData)
+        });
 
         const response = await fetch(`${API_BASE_URL}/generate-cover-letter`, {
             method: 'POST',
@@ -184,6 +232,11 @@ export async function generateCoverLetter(jobId: string, signal: AbortSignal): P
         });
 
         if (signal.aborted) return;
+
+        if (response.status === 429) {
+            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.CoverLetter);
+            return;
+        }
 
         if (!response.ok) {
             const errorData = await response.json();
@@ -211,20 +264,19 @@ export async function tailorResume(
 ): Promise<{
     pdfBuffer: ArrayBuffer
 }> {
-    const {resumeJsonData, theme, resumeDesignYaml, resumeLocalYaml, jobPostingCache} = await getUserData();
-    const {jobPostingText} = jobPostingCache[jobId];
-
-    const {headers, body} = await getAuthHeadersAndBody({
-        resume_json_data: JSON.stringify(resumeJsonData),
-        job_posting_text: jobPostingText,
-        filename: filename,
-        theme: theme,
-        design_yaml_string: resumeDesignYaml,
-        locale_yaml_string: resumeLocalYaml,
-    });
-
     try {
         if (signal.aborted) return;
+        const {resumeJsonData, theme, resumeDesignYaml, resumeLocalYaml, jobPostingCache} = await getUserData();
+        const {jobPostingText} = jobPostingCache[jobId];
+
+        const {headers, body} = await getAuthHeadersAndBody({
+            resume_json_data: JSON.stringify(resumeJsonData),
+            job_posting_text: jobPostingText,
+            filename: filename,
+            theme: theme,
+            design_yaml_string: resumeDesignYaml,
+            locale_yaml_string: resumeLocalYaml,
+        });
 
         const response = await fetch(`${API_BASE_URL}/tailor-resume`, {
             method: 'POST',
@@ -233,6 +285,11 @@ export async function tailorResume(
         });
 
         if (signal.aborted) return;
+
+        if (response.status === 429) {
+            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.ResumePreview);
+            return;
+        }
 
         if (!response.ok) {
             const errorData = await response.json();

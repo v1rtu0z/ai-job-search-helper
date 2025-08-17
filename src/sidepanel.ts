@@ -115,8 +115,6 @@ async function onAnalyze(selectedText: string, isRetry = false) {
     abortController = new AbortController();
     showLoading('Analyzing job posting...');
 
-    addGlobalEventListeners();
-
     loadingRotator.start('analyze', {
         intervalMs: 6000,
         stopOn: abortController.signal,
@@ -166,7 +164,7 @@ async function onGenerateCoverLetter(jobId: string, isRetry = false) {
     abortController = new AbortController();
     showLoading('Drafting a cover letter...');
 
-    loadingRotator.start('analyze', {
+    loadingRotator.start('cover-letter', {
         intervalMs: 6000,
         stopOn: abortController.signal,
     });
@@ -178,7 +176,7 @@ async function onGenerateCoverLetter(jobId: string, isRetry = false) {
         }
 
         const {content} = await serverComms.generateCoverLetter(jobId, abortController.signal);
-        const filename = `${resumeJsonData.personal.full_name}cover_letter_${jobPostingCache[jobId]}.txt`;
+        const filename = `${resumeJsonData.personal.full_name}cover_letter_${jobPostingCache[jobId].CompanyName}.txt`;
         await updateJobCache(jobId, r => {
             r.CoverLetter = {filename, content};
         });
@@ -195,7 +193,7 @@ async function onTailorResume(jobId: string, isRetry = false) {
     abortController = new AbortController();
     showLoading('Tailoring resume...');
 
-    loadingRotator.start('analyze', {
+    loadingRotator.start('resume', {
         intervalMs: 6000,
         stopOn: abortController.signal,
     });
@@ -444,7 +442,6 @@ async function saveUserSettings() {
             throw new Error('Resume file content failed to save.');
         }
 
-        console.log('User settings saved successfully, going back');
         await goBack();
     } catch (error) {
         console.error('Error saving all settings:', error);
