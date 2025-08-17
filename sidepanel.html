@@ -29,6 +29,43 @@
         .loading-msg.visible {
             opacity: 1;
         }
+
+        /* Theme selection styles - removed old grid styles, added carousel styles */
+        .theme-indicator.active {
+            background-color: #3b82f6;
+        }
+
+        .theme-display.selected {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+
+        /* Hover animations for action buttons */
+        .hover-scale:hover {
+            transform: scale(1.05);
+            transition: transform 0.2s ease-in-out;
+        }
+
+        /* Custom bullet points for instruction list */
+        .instruction-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .instruction-list li {
+            position: relative;
+            padding-left: 1.5em;
+            margin-bottom: 0.5em;
+        }
+
+        .instruction-list li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            top: 0;
+            color: #374151;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body class="font-sans m-0 p-4 bg-gray-100 text-gray-800 pb-20">
@@ -60,9 +97,8 @@
 <!-- Instruction Display -->
 <div id="instruction-display" class="view-section">
     <h3 class="text-lg font-semibold mb-4">Instructions</h3>
-    <p class="mb-4">To begin, <strong>select a job description on any webpage</strong>.</p>
-    <p class="mb-4">Once the text is highlighted, choose one of the following options to analyze it:</p>
-    <ul class="list-disc list-inside mb-4 space-y-2">
+    <p class="mb-4">To begin, <strong>select a job description on any webpage</strong>. Once the text is highlighted, choose one of the following options to analyze it:</p>
+    <ul class="instruction-list mb-4">
         <li>
             <p>
                 <strong>Right-click</strong> on the selected text and choose "<strong>Analyze Job Posting Fit</strong>"
@@ -76,7 +112,18 @@
             </p>
         </li>
     </ul>
-    <p class="mb-4">Your resume, additional details, and API key must be saved in the settings for this to work.</p>
+
+    <p class="mb-4">Alternatively, you can paste a job description directly below:</p>
+
+    <!-- Direct Job Description Input Section -->
+    <div class="bg-white p-5 rounded-lg shadow-md mb-4">
+        <label for="job-description-input" class="block mb-2 font-bold">Job Description:</label>
+        <textarea id="job-description-input" rows="8" placeholder="Paste the job description here and click the analyze button below..." class="w-full p-3 mb-4 border border-gray-300 rounded box-border resize-y"></textarea>
+        <button id="analyze-job-description-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600 transition-colors duration-200">
+            ✨ Analyze Job Description
+        </button>
+        <p class="text-sm text-gray-600 mt-3">This will analyze how well your resume matches the job requirements.</p>
+    </div>
 
     <div id="instruction-content">
         <div id="search-query-section" class="bg-white p-5 rounded-lg shadow-md mb-4 hidden">
@@ -119,7 +166,21 @@
     <!-- Markdown content with proper sizing and styling -->
     <div id="markdown-content" class="prose prose-sm max-w-none mb-6 p-4 bg-gray-50 rounded-lg border overflow-auto"></div>
 
-    <div id="resume-preview-container" class="w-full min-h-96 overflow-auto border rounded-lg bg-gray-50 hidden"></div>
+    <div id="resume-preview-container" class="w-full min-h-96 overflow-auto border rounded-lg bg-gray-50 relative hidden">
+        <!-- Zoom Controls - using your existing element names -->
+        <div class="absolute top-2 right-2 z-10 flex gap-2" id="zoom-controls">
+            <button id="zoom-in-btn" class="w-8 h-8 bg-white border border-gray-300 rounded-full shadow-md hover:bg-gray-50 flex items-center justify-center transition-colors duration-200" title="Zoom In">
+                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+            </button>
+            <button id="zoom-out-btn" class="w-8 h-8 bg-white border border-gray-300 rounded-full shadow-md hover:bg-gray-50 flex items-center justify-center transition-colors duration-200" title="Zoom Out">
+                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
 
     <!-- Cover Letter Section -->
     <div class="mt-6">
@@ -148,11 +209,21 @@
 
     <!-- Action Buttons -->
     <div class="mt-6 space-y-3">
-        <button id="tailor-resume-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600 transition-colors duration-200 hidden">Tailor Resume</button>
-        <button id="generate-cover-letter-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-green-600 transition-colors duration-200 hidden">Draft a Cover Letter</button>
-        <button id="download-tailored-resume-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-purple-600 transition-colors duration-200 hidden">Download Tailored Resume</button>
-        <button id="download-cover-letter-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-orange-600 transition-colors duration-200 hidden">Download Cover Letter</button>
-        <button id="retry-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-gray-600 transition-colors duration-200 hidden">Retry</button>
+        <button id="tailor-resume-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600 transition-colors duration-200 hidden">✨ Tailor Resume</button>
+        <button id="generate-cover-letter-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600 transition-colors duration-200 hidden">✨ Draft a Cover Letter</button>
+        <button id="download-tailored-resume-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600 transition-colors duration-200 hidden flex items-center justify-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            Download Tailored Resume
+        </button>
+        <button id="download-cover-letter-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600 transition-colors duration-200 hidden flex items-center justify-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            Download Cover Letter
+        </button>
+        <button id="retry-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600 transition-colors duration-200 hidden">Retry</button>
     </div>
 </div>
 
@@ -161,12 +232,12 @@
     <div class="loading-spinner"></div>
     <p id="loading-spinner-title" class="text-center"></p>
     <div id="loading-messages" class="text-center p-8 rounded-xl bg-white shadow-lg relative w-full max-w-2xl h-36 hidden">
-        <div class="loading-msg hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-11/12 text-xl font-semibold leading-6" id="loading-msg-bmc" data-id="bmc" data-kinds="analyze cover-letter resume">
+        <div class="loading-msg hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-11/12 text-xl font-semibold leading-6" id="loading-msg-bmc" data-id="bmc" data-kinds="analyze cover-letter resume" data-freeze="true">
             <p>If this helps you land the job, please consider supporting the project:</p>
             <div class="flex justify-center mt-3">
-                <a href="https://buymeacoffee.com/v1rtu0z96" target="_blank" rel="noopener noreferrer" class="flex items-center justify-start py-3 px-5 no-underline text-black bg-yellow-300 rounded-full font-bold text-base shadow-md w-40 overflow-hidden whitespace-nowrap">
-                    <img src="https://www.buymeacoffee.com/assets/img/BMC-btn-logo.svg" alt="Buy Me a Coffee" class="h-6 flex-shrink-0">
-                    <span class="ml-1 opacity-100">Buy me a coffee</span>
+                <a href="https://buymeacoffee.com/v1rtu0z96" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center py-3 px-6 no-underline text-black bg-yellow-300 rounded-full font-bold text-base shadow-md min-w-fit hover-scale">
+                    <img src="https://www.buymeacoffee.com/assets/img/BMC-btn-logo.svg" alt="Buy Me a Coffee" class="h-6 w-6 flex-shrink-0">
+                    <span class="ml-2 whitespace-nowrap">Buy me a coffee</span>
                 </a>
             </div>
         </div>
@@ -174,7 +245,7 @@
         <div class="loading-msg hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-11/12 text-xl font-semibold leading-6" id="loading-msg-feedback" data-id="feedback" data-kinds="analyze cover-letter resume">
             <p>Got feedback? I'd be happy to hear it. Send me a message:</p>
             <div class="flex justify-center mt-3">
-                <a href="mailto:nikolamandic1996@gmail.com?subject=AI%20Job%20Search%20Helper%20Feedback" class="flex items-center no-underline text-gray-800 bg-gray-100 border border-gray-300 rounded-full py-3 px-5 font-bold text-base shadow-sm">
+                <a href="mailto:nikolamandic1996@gmail.com?subject=AI%20Job%20Search%20Helper%20Feedback" class="flex items-center no-underline text-gray-800 bg-gray-100 border border-gray-300 rounded-full py-3 px-5 font-bold text-base shadow-sm hover-scale">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-6 w-6 fill-gray-800">
                         <path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5-8-5h16zm0 12H4V8l8 5 8-5v10z"/>
                     </svg>
@@ -216,6 +287,63 @@
         <label for="additional-details" class="block mb-2 font-bold">Additional Details:</label>
         <textarea id="additional-details" rows="4" placeholder="Information like preferred roles, industries, locations, salary ranges..." class="w-full p-3 mb-4 border border-gray-300 rounded box-border"></textarea>
         <p id="user-details-message" class="text-green-600 mt-3"></p>
+    </div>
+
+    <!-- Theme Selection Section -->
+    <div id="theme-selection-section" class="bg-white p-5 rounded-lg shadow-md mb-4">
+        <h3 class="text-lg font-semibold mb-4">Choose Resume Theme</h3>
+
+        <!-- Theme Navigation -->
+        <div class="flex items-center justify-between mb-4">
+            <button id="theme-prev-btn" class="w-8 h-8 bg-gray-100 border border-gray-300 rounded-full shadow-sm hover:bg-gray-200 flex items-center justify-center transition-colors duration-200" title="Previous Theme">
+                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+            </button>
+
+            <div class="flex-1 mx-4">
+                <div class="theme-display bg-gray-50 rounded-lg p-4 border-2 border-gray-200 transition-colors duration-200" id="current-theme-display">
+                    <div class="flex justify-center mb-3">
+                        <img id="current-theme-image" src="themes/classic.png" alt="Classic Theme" class="max-w-full max-h-64 object-contain rounded shadow-sm" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <div id="theme-fallback" class="hidden text-gray-500 text-lg bg-gray-200 p-8 rounded">Classic</div>
+                    </div>
+                    <p id="current-theme-name" class="text-center font-semibold text-lg">classic</p>
+                </div>
+            </div>
+
+            <button id="theme-next-btn" class="w-8 h-8 bg-gray-100 border border-gray-300 rounded-full shadow-sm hover:bg-gray-200 flex items-center justify-center transition-colors duration-200" title="Next Theme">
+                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Theme indicators -->
+        <div class="flex justify-center space-x-2">
+            <div class="theme-indicator w-2 h-2 bg-blue-500 rounded-full cursor-pointer" data-theme="classic" title="classic"></div>
+            <div class="theme-indicator w-2 h-2 bg-gray-300 rounded-full cursor-pointer" data-theme="sb2nov" title="sb2nov"></div>
+            <div class="theme-indicator w-2 h-2 bg-gray-300 rounded-full cursor-pointer" data-theme="engineeringresumes" title="engineeringresumes"></div>
+            <div class="theme-indicator w-2 h-2 bg-gray-300 rounded-full cursor-pointer" data-theme="engineeringclassic" title="engineeringclassic"></div>
+            <div class="theme-indicator w-2 h-2 bg-gray-300 rounded-full cursor-pointer" data-theme="moderncv" title="moderncv"></div>
+        </div>
+
+        <input type="hidden" id="selected-theme" value="classic">
+    </div>
+
+    <!-- Resume YAML Configuration Section -->
+    <div id="yaml-config-section" class="bg-white p-5 rounded-lg shadow-md mb-4">
+        <h3 class="text-lg font-semibold mb-4">Resume Configuration (Advanced)</h3>
+        <p class="text-sm text-gray-600 mb-4">These fields are for advanced users who want to customize their resume structure using YAML configuration.</p>
+
+        <div class="mb-4">
+            <label for="resume-design-yaml" class="block mb-2 font-bold">Resume Design YAML:</label>
+            <textarea id="resume-design-yaml" rows="6" class="w-full p-3 border border-gray-300 rounded box-border font-mono text-sm"></textarea>
+        </div>
+
+        <div class="mb-4">
+            <label for="resume-local-yaml" class="block mb-2 font-bold">Resume Local YAML:</label>
+            <textarea id="resume-local-yaml" rows="6" class="w-full p-3 border border-gray-300 rounded box-border font-mono text-sm"></textarea>
+        </div>
     </div>
 
     <div id="api-key-section" class="bg-white p-5 rounded-lg shadow-md mb-4">

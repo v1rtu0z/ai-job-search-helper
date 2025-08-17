@@ -29,6 +29,7 @@ export const els = {
     codeEl: document.getElementById('search-query-code') as HTMLElement,
     refreshBtn: document.getElementById('refresh-query-btn') as HTMLButtonElement,
     coverLetterWarning: document.getElementById('cover-letter-warning') as HTMLParagraphElement,
+    zoomControls: document.getElementById("zoom-controls") as HTMLDivElement,
     zoomInBtn: document.getElementById('zoom-in-btn') as HTMLButtonElement,
     zoomOutBtn: document.getElementById('zoom-out-btn') as HTMLButtonElement
 };

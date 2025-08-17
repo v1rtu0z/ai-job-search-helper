@@ -60,6 +60,7 @@ module.exports = {
                 // { from: 'options.html', to: './options.html' },
                 // Copy images to a subfolder in dist
                 {from: 'images', to: './images'},
+                {from: 'themes', to: './themes'},
                 {from: '.env', to: '.env'},
                 // Add any other static assets here
             ],
