@@ -310,6 +310,12 @@ function addGlobalEventListeners() {
 
     els.settingsBtn.addEventListener('click', showUserSettings);
 
+    // TODO: Make these change the picture in els.currentThemeDisplay amd select that theme
+    els.themePrevBtn.addEventListener('click', async () => {
+    });
+    els.themeNextBtn.addEventListener('click', async () => {
+    });
+
     els.analyzeJobDescriptionBtn.addEventListener('click', async () => {
         await onAnalyze(els.jobDescriptionInput.value);
     })
@@ -339,7 +345,6 @@ async function getPdfText(file: File): Promise<string> {
     return fullText;
 }
 
-// fixme: save and back buttons don't work at start for some reason
 async function showUserSettings() {
     hideAll();
     toggle(els.settingsView, true);
@@ -347,12 +352,16 @@ async function showUserSettings() {
     toggle(els.userDetailsSection, true);
     toggle(els.backBtn, true);
 
-    // TODO: add changing theme, design and locale of tailored resume
+    // todo: changing theme should automatically change the design yaml
 
     const userRelevantData = await getUserData();
 
+    els.resumeDesignYamlInput.value = userRelevantData.resumeDesignYaml;
+    els.resumeLocalYamlInput.value = userRelevantData.resumeLocalYaml;
+
     els.additionalDetailsTextarea.value = userRelevantData.additionalDetails || '';
     els.resumeFileNameDiv.textContent = userRelevantData.resumeFileName ? `Current resume: ${userRelevantData.resumeFileName}` : 'No resume uploaded yet.';
+
     // todo: trigger resume parsing and show nicer loading as soon as user uploads a file
     els.resumeFileInput.value = '';
     els.apiKeyMessage.textContent = '';

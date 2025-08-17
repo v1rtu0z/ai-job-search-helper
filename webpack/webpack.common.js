@@ -42,6 +42,14 @@ module.exports = {
                     to: 'js/showdown.js'
                 },
                 {
+                    from: 'default_design.yaml',
+                    to: 'default_design.yaml'
+                },
+                {
+                    from: 'default_locale.yaml',
+                    to: 'default_locale.yaml'
+                },
+                {
                     from: 'src/showdown.min.js',
                     to: 'js/showdown.min.js'
                 },
