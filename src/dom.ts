@@ -19,6 +19,8 @@ export const els = {
     tailorResumeBtn: document.getElementById('tailor-resume-btn') as HTMLButtonElement,
     generateCoverLetterBtn: document.getElementById('generate-cover-letter-btn') as HTMLButtonElement,
     downloadCoverLetterBtn: document.getElementById('download-cover-letter-btn') as HTMLButtonElement,
+    jobDescriptionInput: document.getElementById('job-description-input') as HTMLTextAreaElement,
+    analyzeJobDescriptionBtn: document.getElementById('analyze-job-description-btn') as HTMLButtonElement,
     saveAllSettingsBtn: document.getElementById('save-all-settings-btn') as HTMLButtonElement,
     backBtn: document.getElementById('back-btn') as HTMLButtonElement,
     settingsBtn: document.getElementById('settings-btn') as HTMLButtonElement,

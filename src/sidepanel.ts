@@ -310,6 +310,10 @@ function addGlobalEventListeners() {
 
     els.settingsBtn.addEventListener('click', showUserSettings);
 
+    els.analyzeJobDescriptionBtn.addEventListener('click', async () => {
+        await onAnalyze(els.jobDescriptionInput.value);
+    })
+
     els.tailorResumeBtn.addEventListener('click', async () => {
         if (!latestJobId) return;
         await onTailorResume(latestJobId);
