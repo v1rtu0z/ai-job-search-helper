@@ -53,6 +53,10 @@ module.exports = {
                     from: 'src/pdf.worker.mjs',
                     to: 'js/pdf.worker.mjs'
                 },
+                {
+                    from: 'tailwind.js',
+                    to: 'tailwind.js'
+                },
                 // { from: 'options.html', to: './options.html' },
                 // Copy images to a subfolder in dist
                 {from: 'images', to: './images'},

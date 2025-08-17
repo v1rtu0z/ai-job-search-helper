@@ -39,11 +39,6 @@ export class LoadingMessageRotator {
         // Use a small delay to ensure the DOM is ready for the transition.
         setTimeout(() => firstNode.classList.add('visible'), 10);
 
-        if (firstNode.hasAttribute('data-freeze')) {
-            options?.stopOn?.addEventListener('abort', () => this.stop(), {once: true});
-            return;
-        }
-
         const intervalMs = options?.intervalMs ?? 6000;
 
         // This is the core of the rotation logic.

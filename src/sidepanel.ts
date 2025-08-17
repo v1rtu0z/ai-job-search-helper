@@ -39,6 +39,7 @@ async function showMarkdown(markdown: string, isBack = false) {
 async function showCoverLetter(filename: string, content: string, isBack = false) {
     abortController = null;
     hideAll();
+    toggle(els.coverLetterWarning, true);
     toggle(els.markdownOutputSection, true);
     els.coverLetterTextarea.value = content;
     toggle(els.coverLetterTextarea, true);
@@ -168,6 +169,7 @@ async function onGenerateCoverLetter(jobId: string, isRetry = false) {
         intervalMs: 6000,
         stopOn: abortController.signal,
     });
+    console.log('(before try) Generating cover letter for job ID:', jobId);
     try {
         const {jobPostingCache, resumeJsonData} = await getUserData();
 
@@ -175,6 +177,7 @@ async function onGenerateCoverLetter(jobId: string, isRetry = false) {
             return jobPostingCache[jobId].CoverLetter;
         }
 
+        console.log('Generating cover letter for job ID:', jobId);
         const {content} = await serverComms.generateCoverLetter(jobId, abortController.signal);
         const filename = `${resumeJsonData.personal.full_name}cover_letter_${jobPostingCache[jobId].CompanyName}.txt`;
         await updateJobCache(jobId, r => {

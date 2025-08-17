@@ -28,6 +28,7 @@ export const els = {
     querySection: document.getElementById('search-query-section') as HTMLElement,
     codeEl: document.getElementById('search-query-code') as HTMLElement,
     refreshBtn: document.getElementById('refresh-query-btn') as HTMLButtonElement,
+    coverLetterWarning: document.getElementById('cover-letter-warning') as HTMLParagraphElement,
     zoomInBtn: document.getElementById('zoom-in-btn') as HTMLButtonElement,
     zoomOutBtn: document.getElementById('zoom-out-btn') as HTMLButtonElement
 };

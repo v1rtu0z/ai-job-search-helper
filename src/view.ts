@@ -2,7 +2,7 @@ import {els} from './dom';
 
 const allSections = [
     els.apiKeySection, els.userDetailsSection, els.instructionDisplay, els.markdownOutputSection,
-    els.loadingSpinnerSection, els.settingsView, els.resumePreviewContainer,
+    els.loadingSpinnerSection, els.settingsView, els.resumePreviewContainer, els.coverLetterWarning
 ];
 
 export function hideAll() {

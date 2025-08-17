@@ -1,10 +1,8 @@
 {
   "manifest_version": 3,
-
   "name": "AI job search helper",
   "description": "Analyzes job postings for fit, tailors resumes, and drafts cover letters using AI, based on your resume and preferences.",
   "version": "1.0",
-
   "action": {
     "default_icon": {
       "16": "images/icon-16.png",
@@ -12,15 +10,12 @@
     },
     "default_title": "AI job search helper"
   },
-
   "background": {
     "service_worker": "js/service_worker.js"
   },
-
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-
   "permissions": [
     "storage",
     "contextMenus",
@@ -28,7 +23,6 @@
     "scripting",
     "activeTab"
   ],
-
   "commands": {
     "analyze-job-posting-shortcut": {
       "suggested_key": {
@@ -38,7 +32,6 @@
       "description": "Analyze the selected text for job fit."
     }
   },
-
   "host_permissions": [
     "<all_urls>"
   ]
