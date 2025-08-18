@@ -59,6 +59,26 @@ async function showCoverLetter(filename: string, content: string, isBack = false
     stateMachine.set(ViewState.CoverLetter, isBack);
 }
 
+function showSupportPopup() {
+    if (els.sponsorshipPopupOverlay && els.closePopupBtn && els.sponsorshipPopupModal) {
+        // Show the popup by removing the 'hidden' class
+        els.sponsorshipPopupOverlay.classList.remove('hidden');
+
+        // Add event listener to close button
+        els.closePopupBtn.addEventListener('click', () => {
+            els.sponsorshipPopupOverlay.classList.add('hidden');
+        }, { once: true }); // Use { once: true } to automatically remove the listener after it's been called once
+
+        // Add event listener to close when clicking outside the modal
+        els.sponsorshipPopupOverlay.addEventListener('click', (event) => {
+            // Check if the click target is the overlay itself, not the modal
+            if (event.target === els.sponsorshipPopupOverlay) {
+                els.sponsorshipPopupOverlay.classList.add('hidden');
+            }
+        });
+    }
+}
+
 export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, isBack = false) {
     abortController = null;
     hideAll();
@@ -77,7 +97,7 @@ export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer
 
         const blob = new Blob([pdfBuffer], {type: 'application/pdf'});
 
-        els.downloadTailoredResumeBtn.onclick = () => {
+        els.downloadTailoredResumeBtn.onclick = async () => {
             const a = document.createElement('a');
             const url = window.URL.createObjectURL(blob);
 
@@ -88,6 +108,13 @@ export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
+            let userData = await getUserData();
+            userData.resumesDownloaded++;
+            await saveUserData(userData);
+
+            if (userData.resumesDownloaded % 20 === 0) {
+                showSupportPopup();
+            }
         };
     } else {
         toggle(els.downloadTailoredResumeBtn, false);

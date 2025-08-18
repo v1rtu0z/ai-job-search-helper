@@ -401,7 +401,28 @@
 
     <!-- Save button moved outside the advanced section -->
     <button id="save-all-settings-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600">Save All Settings</button>
+</div>
 
+<!-- Sponsorship Popup Overlay and Modal -->
+<div id="sponsorship-popup-overlay" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 hidden transition-opacity duration-300">
+    <div id="sponsorship-popup-modal" class="bg-white p-6 rounded-lg shadow-xl text-center max-w-sm w-full mx-4 relative">
+        <!-- Close Button -->
+        <button id="close-popup-btn" class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 cursor-pointer p-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+        </button>
+        <p class="text-xl font-bold mb-2">Hard Work Pays Off!</p>
+        <p class="text-gray-700 mb-6">
+            It looks like you're working hard to land your next role. I wish you the best of luck in your job search!
+        </p>
+        <p class="text-gray-700 mb-6">
+            If you get hired, or simply find this extension helpful, please consider supporting the project.
+        </p>
+        <a href="https://buymeacoffee.com/v1rtu0z96" target="_blank" class="inline-block bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-bold py-2 px-4 rounded-full shadow-lg transition-colors duration-200">
+            Buy me a coffee
+        </a>
+    </div>
 </div>
 
 <script src="js/showdown.min.js"></script>

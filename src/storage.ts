@@ -18,6 +18,7 @@ export interface UserRelevantData {
     modelName: string;
     currentThemeIndex: number;
     jobPostingCache: Record<string, JobPostingCacheRecord>;
+    resumesDownloaded: number;
 }
 
 export async function getUserData(): Promise<UserRelevantData> {
@@ -26,6 +27,7 @@ export async function getUserData(): Promise<UserRelevantData> {
         modelName: 'gemini-2.0-flash',
         theme: 'engineeringclassic',
         currentThemeIndex: 3,
+        resumesDownloaded: 0,
         resumeDesignYaml: await fetch('default_design.yaml').then(r => r.text()),
         resumeLocalYaml: await fetch('default_locale.yaml').then(r => r.text()),
         jobPostingCache: {}

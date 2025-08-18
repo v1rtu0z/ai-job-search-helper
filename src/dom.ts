@@ -52,4 +52,7 @@ export const els = {
     resumeJsonDataTextarea: document.getElementById('resume-json-data') as HTMLTextAreaElement,
     googleAiConfigSection: document.getElementById('google-ai-config-section') as HTMLDivElement,
     instructionsGreeting: document.getElementById('instructions-greeting') as HTMLParagraphElement,
+    sponsorshipPopupOverlay: document.getElementById('sponsorship-popup-overlay') as HTMLDivElement,
+    closePopupBtn: document.getElementById('close-popup-btn') as HTMLButtonElement,
+    sponsorshipPopupModal: document.getElementById('sponsorship-popup-modal') as HTMLDivElement,
 };
