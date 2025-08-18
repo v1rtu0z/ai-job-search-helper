@@ -547,12 +547,19 @@ async function showInstructions(isBack: boolean = false) {
 }
 
 function showSectionWithQuery(query: string) {
-    if (!els.querySection || !els.codeEl) {
-        console.error('Section or code element not found.');
+    if (!els.querySection || !els.searchQueryLink || !els.searchQueryText) {
+        console.error('One or more search query elements not found.');
         return;
     }
+
     toggle(els.loadingSpinnerSection, false);
-    els.codeEl.textContent = query;
+
+    const linkedInBaseUrl = 'https://www.linkedin.com/jobs/search/?keywords=';
+    const encodedQuery = encodeURIComponent(query);
+    els.searchQueryLink.href = `${linkedInBaseUrl}${encodedQuery}`;
+
+    els.searchQueryText.textContent = query;
+
     toggle(els.querySection, true);
 
     if (els.refreshBtn) {

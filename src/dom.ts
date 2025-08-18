@@ -42,5 +42,7 @@ export const els = {
     coverLetterWarning: document.getElementById('cover-letter-warning') as HTMLParagraphElement,
     zoomControls: document.getElementById("zoom-controls") as HTMLDivElement,
     zoomInBtn: document.getElementById('zoom-in-btn') as HTMLButtonElement,
-    zoomOutBtn: document.getElementById('zoom-out-btn') as HTMLButtonElement
+    zoomOutBtn: document.getElementById('zoom-out-btn') as HTMLButtonElement,
+    searchQueryLink: document.getElementById('search-query-link') as HTMLAnchorElement,
+    searchQueryText: document.getElementById('search-query-text') as HTMLParagraphElement,
 };
