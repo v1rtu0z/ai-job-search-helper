@@ -45,4 +45,11 @@ export const els = {
     zoomOutBtn: document.getElementById('zoom-out-btn') as HTMLButtonElement,
     searchQueryLink: document.getElementById('search-query-link') as HTMLAnchorElement,
     searchQueryText: document.getElementById('search-query-text') as HTMLParagraphElement,
+    advancedSettingsToggle: document.getElementById('advanced-settings-toggle') as HTMLDivElement,
+    advancedSettingsContent: document.getElementById('advanced-settings-content') as HTMLDivElement,
+    advancedSettingsIcon: document.getElementById('advanced-settings-icon') as unknown as SVGElement,
+    modelNameInput: document.getElementById('model-name') as HTMLInputElement,
+    resumeJsonDataTextarea: document.getElementById('resume-json-data') as HTMLTextAreaElement,
+    googleAiConfigSection: document.getElementById('google-ai-config-section') as HTMLDivElement,
+    instructionsGreeting: document.getElementById('instructions-greeting') as HTMLParagraphElement,
 };

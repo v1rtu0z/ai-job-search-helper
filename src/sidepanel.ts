@@ -1,16 +1,14 @@
-import * as pdfjs from "./pdf.mjs";
 import * as serverComms from "./server-comms";
 import {els} from './dom';
 import {hideAll, setHTML, showLoading, toggle} from './view';
 import {converter, showError, stateMachine, ViewState} from './state';
-import {getUserData, saveUserData, updateJobCache, UserRelevantData} from './storage';
+import {getUserData, saveUserData, updateJobCache} from './storage';
 import {arrayBufferToBase64, base64ToArrayBuffer, renderPdfPreview} from './resumePreview';
 import {downloadBlob} from './downloads';
 import {loadingRotator} from "./loading-rotator";
+import {saveUserSettings, showUserSettings} from "./settings";
 
 let abortController: AbortController | null = null;
-
-pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
 
 function abortInFlight() {
     if (abortController) {
@@ -255,7 +253,7 @@ async function retryLastAction() {
 // TODO: Since it's possible to go to one job analysis from any of the other jobs screens, the history should
 //  also keep track of the job id of each screen and not simply the screen state
 
-async function goBack() {
+export async function goBack() {
     abortInFlight();
     let prev: ViewState;
     if (els.userDetailsSection.checkVisibility()) {
@@ -325,214 +323,14 @@ function addGlobalEventListeners() {
     });
 }
 
-async function getPdfText(file: File): Promise<string> {
-    const arrayBuffer = await new Response(file).arrayBuffer();
-    const pdf = await pdfjs.getDocument({data: arrayBuffer}).promise;
-    const numPages = pdf.numPages;
-    let fullText = '';
-    for (let i = 1; i <= numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const text = textContent.items.map((item: any) => item.str).join(' ');
-        fullText += text + ' ';
-    }
-    return fullText;
-}
-
-// Theme configuration
-const themes = ['classic', 'sb2nov', 'engineeringresumes', 'engineeringclassic', 'moderncv'];
-
-function manageTheme(userRelevantData: UserRelevantData) {
-    let currentThemeIndex = themes.indexOf(userRelevantData.theme);
-
-    function updateThemeDisplay() {
-        const currentTheme = themes[currentThemeIndex];
-
-        // Update theme image
-        els.currentThemeImage.src = `themes/${currentTheme}.png`;
-        els.currentThemeImage.alt = `${currentTheme} Theme`;
-        els.currentThemeName.textContent = currentTheme;
-
-        // Update theme indicators
-        const indicators = els.themeSelectionSection.querySelectorAll('.theme-indicator');
-        indicators.forEach((indicator, index) => {
-            if (index === currentThemeIndex) {
-                indicator.classList.add('active', 'bg-blue-500');
-                indicator.classList.remove('bg-gray-300');
-            } else {
-                indicator.classList.remove('active', 'bg-blue-500');
-                indicator.classList.add('bg-gray-300');
-            }
-        });
-
-        // Update theme display border
-        els.currentThemeDisplay.classList.add('selected');
-    }
-
-    // Set up theme display and controls
-    updateThemeDisplay();
-    // Remove existing event listeners
-    const prevBtn = els.themePrevBtn.cloneNode(true);
-    const nextBtn = els.themeNextBtn.cloneNode(true);
-    els.themePrevBtn.replaceWith(prevBtn);
-    els.themeNextBtn.replaceWith(nextBtn);
-
-    async function updateDesignYamlForTheme() {
-        const currentTheme = themes[currentThemeIndex];
-        const currentYaml = els.resumeDesignYamlInput.value;
-
-        // If there's existing YAML, replace the theme name
-        if (currentYaml) {
-            // Find and replace theme references in YAML
-            els.resumeDesignYamlInput.value = currentYaml.replace(
-                /theme:\s*["']?[a-zA-Z0-9_-]+["']?/g,
-                `theme: ${currentTheme}`
-            );
-        } else {
-            // Set default YAML for the theme
-            els.resumeDesignYamlInput.value = `theme: "${currentTheme}"\nfont: "Source Sans 3"\nfont_size: 10pt\npage_size: letterpaper`;
-        }
-    }
-
-    // Add new event listeners
-    prevBtn.addEventListener('click', () => {
-        currentThemeIndex = (currentThemeIndex - 1 + themes.length) % themes.length;
-        updateThemeDisplay();
-        updateDesignYamlForTheme();
-    });
-
-    nextBtn.addEventListener('click', () => {
-        currentThemeIndex = (currentThemeIndex + 1) % themes.length;
-        updateThemeDisplay();
-        updateDesignYamlForTheme();
-    });
-
-    // Set up theme indicator clicks
-    const indicators = els.themeSelectionSection.querySelectorAll('.theme-indicator');
-    indicators.forEach((indicator, index) => {
-        const newIndicator = indicator.cloneNode(true);
-        indicator.replaceWith(newIndicator);
-        newIndicator.addEventListener('click', () => {
-            currentThemeIndex = index;
-            updateThemeDisplay();
-            updateDesignYamlForTheme();
-        });
-    });
-}
-
-async function showUserSettings() {
-    hideAll();
-    toggle(els.settingsView, true);
-    toggle(els.apiKeySection, true);
-    toggle(els.userDetailsSection, true);
-    toggle(els.backBtn, true);
-
-    const userRelevantData = await getUserData();
-    manageTheme(userRelevantData);
-
-    els.resumeDesignYamlInput.value = userRelevantData.resumeDesignYaml;
-    els.resumeLocalYamlInput.value = userRelevantData.resumeLocalYaml;
-
-    els.additionalDetailsTextarea.value = userRelevantData.additionalDetails || '';
-    els.resumeFileNameDiv.textContent = userRelevantData.resumeFileName ? `Current resume: ${userRelevantData.resumeFileName}` : 'No resume uploaded yet.';
-
-    // todo: trigger resume parsing and show nicer loading as soon as user uploads a file
-    els.resumeFileInput.value = '';
-    els.apiKeyMessage.textContent = '';
-    els.userDetailsMessage.textContent = '';
-
-    els.saveAllSettingsBtn.addEventListener('click', saveUserSettings);
-}
-
-async function saveUserSettings() {
-    const apiKey = els.googleApiKeyInput.value.trim();
-    const file = els.resumeFileInput.files && els.resumeFileInput.files.length > 0 ? els.resumeFileInput.files[0] : null;
-    const additionalDetails = els.additionalDetailsTextarea.value.trim();
-
-    try {
-        els.apiKeyMessage.textContent = '';
-        els.userDetailsMessage.textContent = '';
-
-        const userRelevantData = await getUserData();
-        const oldFileContent = userRelevantData.resumeFileContent;
-        const oldAdditionalDetails = userRelevantData.additionalDetails;
-
-        if (!userRelevantData.googleApiKey || userRelevantData.googleApiKey !== apiKey) {
-            userRelevantData.googleApiKey = apiKey;
-        }
-
-        let newResumeUploaded = false;
-        if (file) {
-            newResumeUploaded = true;
-
-            let fileContent = '';
-            if (file.type === 'application/pdf') {
-                fileContent = await getPdfText(file);
-            } else if (file.type === 'text/plain') {
-                fileContent = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target?.result as string);
-                    reader.onerror = (e) => reject(e);
-                    reader.readAsText(file);
-                });
-            } else {
-                els.userDetailsMessage.textContent = 'Unsupported file type. Please upload a PDF or TXT file.';
-                els.userDetailsMessage.style.color = 'red';
-                return;
-            }
-
-            userRelevantData.resumeFileName = file.name;
-            userRelevantData.resumeFileContent = fileContent;
-        } else if (!userRelevantData.resumeFileName) {
-            els.userDetailsMessage.textContent = 'A resume file is mandatory.';
-            els.userDetailsMessage.style.color = 'red';
-            return;
-        }
-
-        userRelevantData.additionalDetails = additionalDetails;
-
-        const resumeChanged = oldFileContent !== userRelevantData.resumeFileContent;
-        if (newResumeUploaded || resumeChanged || (oldAdditionalDetails !== userRelevantData.additionalDetails)) {
-            if (resumeChanged) {
-                userRelevantData.jobPostingCache = {}
-                // todo: make this look better
-                showLoading('Parsing your resume...', false);
-                const {
-                    search_query,
-                    resume_data
-                } = await serverComms.getResumeJson(userRelevantData.resumeFileContent, additionalDetails);
-                userRelevantData.linkedinSearchQuery = search_query;
-                userRelevantData.resumeJsonData = resume_data;
-            } else {
-                userRelevantData.resumeJsonData.additionalDetails = additionalDetails;
-            }
-            userRelevantData.jobPostingCache = {}
-        }
-
-        userRelevantData.theme = els.currentThemeName.textContent;
-
-        await saveUserData(userRelevantData);
-
-        const {resumeJsonData} = await getUserData();
-
-        if (!resumeJsonData) {
-            throw new Error('Resume file content failed to save.');
-        }
-
-        await goBack();
-    } catch (error) {
-        console.error('Error saving all settings:', error);
-        els.userDetailsMessage.textContent = 'Failed to save settings. Please try again.';
-        els.userDetailsMessage.style.color = 'red';
-    }
-}
-
 async function showInstructions(isBack: boolean = false) {
     const data = await getUserData()
-    if (!data.resumeFileContent && !data.additionalDetails) {
+    if (!data.resumeJsonData) {
         await showUserSettings()
     } else {
         hideAll();
+        const firstName = data.resumeJsonData.personal.full_name.split(' ')[0];
+        els.instructionsGreeting.textContent = `Welcome, ✨${firstName}✨! Let's get you set up for success!`;
         toggle(els.instructionDisplay, true);
         stateMachine.set(ViewState.Instructions, isBack);
         toggle(els.settingsBtn, true);

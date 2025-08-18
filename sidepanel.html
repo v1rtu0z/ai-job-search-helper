@@ -97,7 +97,8 @@
 <!-- Instruction Display -->
 <div id="instruction-display" class="view-section">
     <h3 class="text-lg font-semibold mb-4">Instructions</h3>
-    <p class="mb-4">To begin, <strong>select a job description on any webpage</strong>. Once the text is highlighted, choose one of the following options to analyze it:</p>
+    <h4 class="text-base font-medium mb-2" id="instructions-greeting"></h4>
+    <p class="mb-4">To begin, <strong>select a job description on any webpage</strong>. Once the text is highlighted, choose one of the following options <strong>to analyze how well your resume matches the job requirements</strong>:</p>
     <ul class="instruction-list mb-4">
         <li>
             <p>
@@ -111,9 +112,12 @@
                 can change this in Chrome extension settings.
             </p>
         </li>
+        <li>
+            <p>
+                Alternatively, you can paste a job description directly below:
+            </p>
+        </li>
     </ul>
-
-    <p class="mb-4">Alternatively, you can paste a job description directly below:</p>
 
     <!-- Direct Job Description Input Section -->
     <div class="bg-white p-5 rounded-lg shadow-md mb-4">
@@ -122,7 +126,6 @@
         <button id="analyze-job-description-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600 transition-colors duration-200">
             ✨ Analyze Job Description
         </button>
-        <p class="text-sm text-gray-600 mt-3">This will analyze how well your resume matches the job requirements.</p>
     </div>
 
     <div id="instruction-content">
@@ -285,20 +288,26 @@
 </div>
 
 <!-- Settings View -->
-<div id="settings-view" class="hidden">
-    <div id="user-details-section" class="bg-white p-5 rounded-lg shadow-md mb-4">
+<div id="settings-view" class="hidden p-4 space-y-4">
+
+    <!-- User Details Section -->
+    <div id="user-details-section" class="bg-white p-5 rounded-lg shadow-md">
         <p class="mb-4">Let the AI know a bit about you:</p>
+
+        <!-- Resume File Upload -->
         <label for="resume-file" class="block mb-2 font-bold">Upload your Resume (PDF or TXT):</label>
         <div id="resume-file-name" class="mb-3"></div>
         <input type="file" id="resume-file" accept=".pdf,.txt" class="w-full p-3 mb-4 border border-gray-300 rounded box-border">
+
+        <!-- Additional Details -->
         <label for="additional-details" class="block mb-2 font-bold">Additional Details:</label>
         <textarea id="additional-details" rows="4" placeholder="Information like preferred roles, industries, locations, salary ranges..." class="w-full p-3 mb-4 border border-gray-300 rounded box-border"></textarea>
         <p id="user-details-message" class="text-green-600 mt-3"></p>
     </div>
 
     <!-- Theme Selection Section -->
-    <div id="theme-selection-section" class="bg-white p-5 rounded-lg shadow-md mb-4">
-        <h3 class="text-lg font-semibold mb-4">Choose Resume Theme</h3>
+    <div id="theme-selection-section" class="bg-white p-5 rounded-lg shadow-md">
+        <h3 class="text-lg font-semibold mb-4">Choose a theme for your tailored resumes</h3>
 
         <!-- Theme Navigation -->
         <div class="flex items-center justify-between mb-4">
@@ -337,31 +346,62 @@
         <input type="hidden" id="selected-theme" value="classic">
     </div>
 
-    <!-- Resume YAML Configuration Section -->
-    <div id="yaml-config-section" class="bg-white p-5 rounded-lg shadow-md mb-4">
-        <h3 class="text-lg font-semibold mb-4">Resume Configuration (Advanced)</h3>
-        <p class="text-sm text-gray-600 mb-4">These fields are for advanced users who want to customize their resume structure using YAML configuration.</p>
+    <!-- Advanced Settings Section -->
+    <div id="advanced-settings-toggle" class="bg-gray-200 p-4 rounded-lg shadow-sm cursor-pointer flex justify-between items-center transition-colors duration-200 hover:bg-gray-300">
+        <h3 class="text-md font-semibold text-gray-800">Advanced Settings</h3>
+        <svg id="advanced-settings-icon" class="w-5 h-5 text-gray-600 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+        </svg>
+    </div>
 
-        <div class="mb-4">
-            <label for="resume-design-yaml" class="block mb-2 font-bold">Resume Design YAML:</label>
-            <textarea id="resume-design-yaml" rows="6" class="w-full p-3 border border-gray-300 rounded box-border font-mono text-sm"></textarea>
-        </div>
+    <div id="advanced-settings-content" class="hidden">
+        <div class="bg-white p-5 rounded-lg shadow-md mb-4">
 
-        <div class="mb-4">
-            <label for="resume-local-yaml" class="block mb-2 font-bold">Resume Local YAML:</label>
-            <textarea id="resume-local-yaml" rows="6" class="w-full p-3 border border-gray-300 rounded box-border font-mono text-sm"></textarea>
+            <!-- Resume JSON Data -->
+            <div class="mb-4">
+                <label for="resume-json-data" class="block mb-2 font-bold">Resume JSON Data: (this is the result of parsing your resume, NOTE: changing this overrides your resume and additional details fields!) </label>
+                <textarea id="resume-json-data" rows="10" class="w-full p-3 border border-gray-300 rounded box-border font-mono text-sm" placeholder="Paste your resume data here in JSON format."></textarea>
+            </div>
+
+
+            <div id="google-ai-config-section" class="mb-4 hidden">
+                <h3 class="text-lg font-semibold mb-4">Google AI settings</h3>
+
+                <!-- API Key Section -->
+                <div id="api-key-section">
+                    <label for="google-api-key" class="block mb-2 font-bold">Google API Key:</label>
+                    <p class="mb-4">You can set up your free tier key <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800">here</a>. To learn more about what an API key is, click <a href="https://en.wikipedia.org/wiki/API_key" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800">here</a>.</p>
+                    <input type="text" id="google-api-key" placeholder="this value is already pre-set, only change it if you're facing issues" class="w-full p-3 mb-4 border border-gray-300 rounded box-border">
+                    <p id="api-key-message" class="text-red-600 mt-3"></p>
+                </div>
+
+                <!-- Model Name -->
+                <div class="mb-4">
+                    <label for="model-name" class="block mb-2 font-bold">Model Name:</label>
+                    <input type="text" id="model-name" value="gemini-2.0-flash" class="w-full p-3 border border-gray-300 rounded box-border font-mono text-sm">
+                </div>
+            </div>
+
+            <!-- Resume YAML Configuration Section -->
+            <div id="yaml-config-section" class="mb-4">
+                <h3 class="text-lg font-semibold mb-4">Tailored Resume Configuration</h3>
+                <p class="text-sm text-gray-600 mb-4">These fields are for advanced users who want to customize their resume structure using YAML configuration. Check out the docs for more details.</p>
+                <div class="mb-4">
+                    <label for="resume-design-yaml" class="block mb-2 font-bold">Resume Design YAML: <a href="https://docs.rendercv.com/user_guide/structure_of_the_yaml_input_file/#design-field" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800">(docs)</a></label>
+                    <p class="text-sm text-gray-600 mb-2">NOTE: Changing the theme here will override whatever theme you selected above!</p>
+                    <textarea id="resume-design-yaml" rows="6" class="w-full p-3 border border-gray-300 rounded box-border font-mono text-sm"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="resume-local-yaml" class="block mb-2 font-bold">Resume Local YAML: <a href="https://docs.rendercv.com/user_guide/structure_of_the_yaml_input_file/#locale-field" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800">(docs)</a></label>
+                    <textarea id="resume-local-yaml" rows="6" class="w-full p-3 border border-gray-300 rounded box-border font-mono text-sm"></textarea>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div id="api-key-section" class="bg-white p-5 rounded-lg shadow-md mb-4">
-        <p class="mb-4">You can set up your free tier key <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800">here</a>.</p>
-        <p class="mb-4">To learn more about what an API key is, click <a href="https://en.wikipedia.org/wiki/API_key" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800">here</a>.</p>
-        <label for="google-api-key" class="block mb-2 font-bold">Google API Key:</label>
-        <input type="text" id="google-api-key" placeholder="this value is already pre-set, only change it if you're facing issues" class="w-full p-3 mb-4 border border-gray-300 rounded box-border">
-        <p id="api-key-message" class="text-red-600 mt-3"></p>
+    <!-- Save button moved outside the advanced section -->
+    <button id="save-all-settings-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600">Save All Settings</button>
 
-        <button id="save-all-settings-btn" class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600">Save All Settings</button>
-    </div>
 </div>
 
 <script src="js/showdown.min.js"></script>

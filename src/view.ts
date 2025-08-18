@@ -2,16 +2,14 @@ import {els} from './dom';
 
 const allSections = [
     els.apiKeySection, els.userDetailsSection, els.instructionDisplay, els.markdownOutputSection,
-    els.loadingSpinnerSection, els.settingsView, els.resumePreviewContainer, els.coverLetterWarning
+    els.loadingSpinnerSection, els.settingsView, els.resumePreviewContainer, els.coverLetterWarning,
+    els.googleAiConfigSection, els.advancedSettingsToggle, els.backBtn, els.tailorResumeBtn,
+    els.generateCoverLetterBtn, els.downloadCoverLetterBtn, els.retryBtn, els.markdownContent,
+    els.coverLetterTextarea, els.coverLetterTextareaTitle, els.settingsBtn, els.downloadTailoredResumeBtn
 ];
 
 export function hideAll() {
     for (const el of allSections) el.classList.add('hidden');
-    [
-        els.backBtn, els.tailorResumeBtn, els.generateCoverLetterBtn, els.downloadCoverLetterBtn,
-        els.retryBtn, els.markdownContent, els.coverLetterTextarea, els.coverLetterTextareaTitle,
-        els.settingsBtn, els.downloadTailoredResumeBtn
-    ].forEach(el => el.classList.add('hidden'));
 }
 
 export function toggle(el: HTMLElement, visible: boolean) {
