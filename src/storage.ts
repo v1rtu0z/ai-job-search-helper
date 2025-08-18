@@ -16,6 +16,7 @@ export interface UserRelevantData {
     resumeDesignYaml: string;
     resumeLocalYaml: string;
     theme: string;
+    currentThemeIndex: number;
     jobPostingCache: Record<string, JobPostingCacheRecord>;
 }
 
@@ -23,6 +24,7 @@ export async function getUserData(): Promise<UserRelevantData> {
     const {userRelevantData} = await chrome.storage.local.get('userRelevantData');
     return userRelevantData ?? {
         theme: 'engineeringclassic',
+        currentThemeIndex: 0,
         resumeDesignYaml: await fetch('default_design.yaml').then(r => r.text()),
         resumeLocalYaml: await fetch('default_locale.yaml').then(r => r.text()),
         jobPostingCache: {}

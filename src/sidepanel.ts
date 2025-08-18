@@ -3,7 +3,7 @@ import * as serverComms from "./server-comms";
 import {els} from './dom';
 import {hideAll, setHTML, showLoading, toggle} from './view';
 import {converter, showError, stateMachine, ViewState} from './state';
-import {getUserData, saveUserData, updateJobCache} from './storage';
+import {getUserData, saveUserData, updateJobCache, UserRelevantData} from './storage';
 import {arrayBufferToBase64, base64ToArrayBuffer, renderPdfPreview} from './resumePreview';
 import {downloadBlob} from './downloads';
 import {loadingRotator} from "./loading-rotator";
@@ -310,12 +310,6 @@ function addGlobalEventListeners() {
 
     els.settingsBtn.addEventListener('click', showUserSettings);
 
-    // TODO: Make these change the picture in els.currentThemeDisplay amd select that theme
-    els.themePrevBtn.addEventListener('click', async () => {
-    });
-    els.themeNextBtn.addEventListener('click', async () => {
-    });
-
     els.analyzeJobDescriptionBtn.addEventListener('click', async () => {
         await onAnalyze(els.jobDescriptionInput.value);
     })
@@ -345,6 +339,87 @@ async function getPdfText(file: File): Promise<string> {
     return fullText;
 }
 
+// Theme configuration
+const themes = ['classic', 'sb2nov', 'engineeringresumes', 'engineeringclassic', 'moderncv'];
+
+function manageTheme(userRelevantData: UserRelevantData) {
+    let currentThemeIndex = themes.indexOf(userRelevantData.theme);
+
+    function updateThemeDisplay() {
+        const currentTheme = themes[currentThemeIndex];
+
+        // Update theme image
+        els.currentThemeImage.src = `themes/${currentTheme}.png`;
+        els.currentThemeImage.alt = `${currentTheme} Theme`;
+        els.currentThemeName.textContent = currentTheme;
+
+        // Update theme indicators
+        const indicators = els.themeSelectionSection.querySelectorAll('.theme-indicator');
+        indicators.forEach((indicator, index) => {
+            if (index === currentThemeIndex) {
+                indicator.classList.add('active', 'bg-blue-500');
+                indicator.classList.remove('bg-gray-300');
+            } else {
+                indicator.classList.remove('active', 'bg-blue-500');
+                indicator.classList.add('bg-gray-300');
+            }
+        });
+
+        // Update theme display border
+        els.currentThemeDisplay.classList.add('selected');
+    }
+
+    // Set up theme display and controls
+    updateThemeDisplay();
+    // Remove existing event listeners
+    const prevBtn = els.themePrevBtn.cloneNode(true);
+    const nextBtn = els.themeNextBtn.cloneNode(true);
+    els.themePrevBtn.replaceWith(prevBtn);
+    els.themeNextBtn.replaceWith(nextBtn);
+
+    async function updateDesignYamlForTheme() {
+        const currentTheme = themes[currentThemeIndex];
+        const currentYaml = els.resumeDesignYamlInput.value;
+
+        // If there's existing YAML, replace the theme name
+        if (currentYaml) {
+            // Find and replace theme references in YAML
+            els.resumeDesignYamlInput.value = currentYaml.replace(
+                /theme:\s*["']?[a-zA-Z0-9_-]+["']?/g,
+                `theme: ${currentTheme}`
+            );
+        } else {
+            // Set default YAML for the theme
+            els.resumeDesignYamlInput.value = `theme: "${currentTheme}"\nfont: "Source Sans 3"\nfont_size: 10pt\npage_size: letterpaper`;
+        }
+    }
+
+    // Add new event listeners
+    prevBtn.addEventListener('click', () => {
+        currentThemeIndex = (currentThemeIndex - 1 + themes.length) % themes.length;
+        updateThemeDisplay();
+        updateDesignYamlForTheme();
+    });
+
+    nextBtn.addEventListener('click', () => {
+        currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+        updateThemeDisplay();
+        updateDesignYamlForTheme();
+    });
+
+    // Set up theme indicator clicks
+    const indicators = els.themeSelectionSection.querySelectorAll('.theme-indicator');
+    indicators.forEach((indicator, index) => {
+        const newIndicator = indicator.cloneNode(true);
+        indicator.replaceWith(newIndicator);
+        newIndicator.addEventListener('click', () => {
+            currentThemeIndex = index;
+            updateThemeDisplay();
+            updateDesignYamlForTheme();
+        });
+    });
+}
+
 async function showUserSettings() {
     hideAll();
     toggle(els.settingsView, true);
@@ -352,9 +427,8 @@ async function showUserSettings() {
     toggle(els.userDetailsSection, true);
     toggle(els.backBtn, true);
 
-    // todo: changing theme should automatically change the design yaml
-
     const userRelevantData = await getUserData();
+    manageTheme(userRelevantData);
 
     els.resumeDesignYamlInput.value = userRelevantData.resumeDesignYaml;
     els.resumeLocalYamlInput.value = userRelevantData.resumeLocalYaml;
@@ -370,31 +444,10 @@ async function showUserSettings() {
     els.saveAllSettingsBtn.addEventListener('click', saveUserSettings);
 }
 
-async function showInstructions(isBack: boolean = false) {
-    const data = await getUserData()
-    if (!data.resumeFileContent && !data.additionalDetails) {
-        await showUserSettings()
-    } else {
-        hideAll();
-        toggle(els.instructionDisplay, true);
-        stateMachine.set(ViewState.Instructions, isBack);
-        toggle(els.settingsBtn, true);
-        toggle(els.backBtn, false);
-        if (data.linkedinSearchQuery) {
-            showSectionWithQuery(data.linkedinSearchQuery);
-            return;
-        } else {
-            await onSearchQueryRefresh(true);
-        }
-    }
-}
-
 async function saveUserSettings() {
     const apiKey = els.googleApiKeyInput.value.trim();
     const file = els.resumeFileInput.files && els.resumeFileInput.files.length > 0 ? els.resumeFileInput.files[0] : null;
     const additionalDetails = els.additionalDetailsTextarea.value.trim();
-
-    // todo: add fields for user to change resumeDesignYaml, resumeLocalYaml, theme
 
     try {
         els.apiKeyMessage.textContent = '';
@@ -456,6 +509,8 @@ async function saveUserSettings() {
             userRelevantData.jobPostingCache = {}
         }
 
+        userRelevantData.theme = els.currentThemeName.textContent;
+
         await saveUserData(userRelevantData);
 
         const {resumeJsonData} = await getUserData();
@@ -469,6 +524,25 @@ async function saveUserSettings() {
         console.error('Error saving all settings:', error);
         els.userDetailsMessage.textContent = 'Failed to save settings. Please try again.';
         els.userDetailsMessage.style.color = 'red';
+    }
+}
+
+async function showInstructions(isBack: boolean = false) {
+    const data = await getUserData()
+    if (!data.resumeFileContent && !data.additionalDetails) {
+        await showUserSettings()
+    } else {
+        hideAll();
+        toggle(els.instructionDisplay, true);
+        stateMachine.set(ViewState.Instructions, isBack);
+        toggle(els.settingsBtn, true);
+        toggle(els.backBtn, false);
+        if (data.linkedinSearchQuery) {
+            showSectionWithQuery(data.linkedinSearchQuery);
+            return;
+        } else {
+            await onSearchQueryRefresh(true);
+        }
     }
 }
 
