@@ -124,7 +124,7 @@ async function parseAndUpdateResume(userData: UserRelevantData): Promise<void> {
         const {
             search_query,
             resume_data
-        } = await serverComms.getResumeJson(userData.resumeFileContent, additionalDetails);
+        } = await serverComms.getResumeJson(userData.resumeFileContent, additionalDetails, userData.modelName);
 
         // Update the resume JSON data
         userData.linkedinSearchQuery = search_query;

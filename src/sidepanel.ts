@@ -380,7 +380,7 @@ function showSectionWithQuery(query: string) {
 
     toggle(els.loadingSpinnerSection, false);
 
-    const linkedInBaseUrl = 'https://www.linkedin.com/jobs/search/?keywords=';
+    const linkedInBaseUrl = 'https://www.linkedin.com/jobs/search/?f_TPR=r86400&keywords=';
     const encodedQuery = encodeURIComponent(query);
     els.searchQueryLink.href = `${linkedInBaseUrl}${encodedQuery}`;
 
