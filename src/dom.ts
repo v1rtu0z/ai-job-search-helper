@@ -55,4 +55,7 @@ export const els = {
     sponsorshipPopupOverlay: document.getElementById('sponsorship-popup-overlay') as HTMLDivElement,
     closePopupBtn: document.getElementById('close-popup-btn') as HTMLButtonElement,
     sponsorshipPopupModal: document.getElementById('sponsorship-popup-modal') as HTMLDivElement,
+    settingsExplainerOverlay: document.getElementById('settings-explainer-overlay') as HTMLDivElement,
+    closeExplainerBtn: document.getElementById('close-explainer-btn') as HTMLButtonElement,
+    settingsExplainerModal: document.getElementById('settings-explainer-modal') as HTMLDivElement,
 };

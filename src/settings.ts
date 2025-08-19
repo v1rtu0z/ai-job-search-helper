@@ -147,6 +147,29 @@ async function parseAndUpdateResume(userData: UserRelevantData): Promise<void> {
     }
 }
 
+/**
+ * Displays the settings explainer popup.
+ * It also sets up event listeners to close the popup.
+ */
+function showSettingsExplainerPopup() {
+    if (els.settingsExplainerOverlay && els.closeExplainerBtn && els.settingsExplainerModal) {
+        // Show the popup by removing the 'hidden' class
+        els.settingsExplainerOverlay.classList.remove('hidden');
+
+        // Add event listener to close button
+        els.closeExplainerBtn.addEventListener('click', () => {
+            els.settingsExplainerOverlay.classList.add('hidden');
+        }, {once: true});
+
+        // Add event listener to close when clicking outside the modal
+        els.settingsExplainerOverlay.addEventListener('click', (event) => {
+            if (event.target === els.settingsExplainerOverlay) {
+                els.settingsExplainerOverlay.classList.add('hidden');
+            }
+        });
+    }
+}
+
 export async function showUserSettings() {
     // Hide all other views
     hideAll();
@@ -245,6 +268,10 @@ export async function showUserSettings() {
         resumeJsonData.additionalDetails = els.additionalDetailsTextarea.value.trim();
         els.resumeJsonDataTextarea.value = JSON.stringify(resumeJsonData, null, 2);
     });
+
+    if (!userData.resumeJsonData) {
+        showSettingsExplainerPopup();
+    }
 }
 
 // todo: this could be integrated into the showusersettings function
