@@ -136,7 +136,7 @@ async function onSearchQueryRefresh(forceRegenerate: boolean): Promise<void> {
 
     showLoading('Generating a personalized LinkedIn search query...', false);
 
-    const searchQuery = await serverComms.generateSearchQuery();
+    const searchQuery = await serverComms.generateSearchQuery(userRelevantData.modelName);
     userRelevantData.linkedinSearchQuery = searchQuery;
     await saveUserData(userRelevantData);
     showSectionWithQuery(searchQuery);
@@ -156,7 +156,7 @@ async function onAnalyze(selectedText: string, isRetry = false) {
         if (jobPostingText.length === 0) {
             throw new Error('Empty job posting text.');
         }
-        const {jobPostingCache} = await getUserData();
+        const {jobPostingCache, modelName} = await getUserData();
 
         if (!isRetry && jobPostingText && jobPostingCache) {
             for (const jobId in jobPostingCache) {
@@ -174,7 +174,7 @@ async function onAnalyze(selectedText: string, isRetry = false) {
             jobId,
             companyName,
             jobAnalysis
-        } = await serverComms.analyzeJobPosting(selectedText, abortController.signal);
+        } = await serverComms.analyzeJobPosting(selectedText, abortController.signal, modelName);
 
         latestJobId = jobId;
         await updateJobCache(jobId, r => {
@@ -202,14 +202,14 @@ async function onGenerateCoverLetter(jobId: string, isRetry = false) {
     });
     console.log('(before try) Generating cover letter for job ID:', jobId);
     try {
-        const {jobPostingCache, resumeJsonData} = await getUserData();
+        const {jobPostingCache, resumeJsonData, modelName} = await getUserData();
 
         if (!isRetry && jobPostingCache[jobId]?.CoverLetter) {
             return jobPostingCache[jobId].CoverLetter;
         }
 
         console.log('Generating cover letter for job ID:', jobId);
-        const {content} = await serverComms.generateCoverLetter(jobId, abortController.signal);
+        const {content} = await serverComms.generateCoverLetter(jobId, abortController.signal, modelName);
         const filename = `${resumeJsonData.personal.full_name}_cover_letter_${jobPostingCache[jobId].CompanyName}.txt`;
         await updateJobCache(jobId, r => {
             r.CoverLetter = {filename, content};
@@ -235,6 +235,7 @@ async function onTailorResume(jobId: string, isRetry = false) {
         const {
             resumeJsonData,
             jobPostingCache,
+            modelName
         } = await getUserData();
 
         if (!isRetry && jobPostingCache[jobId]?.TailoredResume) {
@@ -249,7 +250,7 @@ async function onTailorResume(jobId: string, isRetry = false) {
             jobPostingCache[jobId].CompanyName.toLowerCase().replace(/\s+/g, '_'
             )
         }.pdf`;
-        const {pdfBuffer} = await serverComms.tailorResume(jobId, filename, abortController.signal);
+        const {pdfBuffer} = await serverComms.tailorResume(jobId, filename, abortController.signal, modelName);
         await updateJobCache(jobId, r => {
             const pdfArrayBufferInBase64 = arrayBufferToBase64(pdfBuffer);
             r.TailoredResume = {filename, pdfArrayBufferInBase64};

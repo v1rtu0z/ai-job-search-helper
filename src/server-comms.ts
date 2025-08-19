@@ -95,13 +95,14 @@ function isTokenExpired(token: string): boolean {
     }
 }
 
-export async function getResumeJson(resumeFileContent: string, additionalDetails: string): Promise<{
+export async function getResumeJson(resumeFileContent: string, additionalDetails: string, modelName: string): Promise<{
     search_query: string,
     resume_data: any
 }> {
     const {headers, body} = await getAuthHeadersAndBody({
         resume_content: resumeFileContent,
-        additional_details: additionalDetails
+        additional_details: additionalDetails,
+        model_name: modelName,
     });
 
     try {
@@ -128,10 +129,11 @@ export async function getResumeJson(resumeFileContent: string, additionalDetails
     }
 }
 
-export async function generateSearchQuery(): Promise<string> {
+export async function generateSearchQuery(modelName: string): Promise<string> {
     const {resumeJsonData} = await getUserData();
     const {headers, body} = await getAuthHeadersAndBody({
-        resume_json_data: JSON.stringify(resumeJsonData)
+        resume_json_data: JSON.stringify(resumeJsonData),
+        model_name: modelName,
     });
 
     try {
@@ -165,7 +167,7 @@ export async function generateSearchQuery(): Promise<string> {
     }
 }
 
-export async function analyzeJobPosting(jobPostingText: string, signal: AbortSignal): Promise<{
+export async function analyzeJobPosting(jobPostingText: string, signal: AbortSignal, modelName: string): Promise<{
     jobId: string,
     companyName: string,
     jobAnalysis: string
@@ -176,7 +178,8 @@ export async function analyzeJobPosting(jobPostingText: string, signal: AbortSig
         const {resumeJsonData} = await getUserData();
         const {headers, body} = await getAuthHeadersAndBody({
             job_posting_text: jobPostingText,
-            resume_json_data: JSON.stringify(resumeJsonData)
+            resume_json_data: JSON.stringify(resumeJsonData),
+            model_name: modelName,
         });
 
         const response = await fetch(`${API_BASE_URL}/analyze-job-posting`, {
@@ -214,7 +217,7 @@ Please check your API key and network connection, then try again.`;
     }
 }
 
-export async function generateCoverLetter(jobId: string, signal: AbortSignal): Promise<{
+export async function generateCoverLetter(jobId: string, signal: AbortSignal, modelName: string): Promise<{
     content: string
 }> {
     try {
@@ -222,7 +225,8 @@ export async function generateCoverLetter(jobId: string, signal: AbortSignal): P
         const {resumeJsonData, jobPostingCache} = await getUserData();
         const {headers, body} = await getAuthHeadersAndBody({
             job_posting_text: jobPostingCache[jobId].jobPostingText,
-            resume_json_data: JSON.stringify(resumeJsonData)
+            resume_json_data: JSON.stringify(resumeJsonData),
+            model_name: modelName,
         });
 
         const response = await fetch(`${API_BASE_URL}/generate-cover-letter`, {
@@ -260,7 +264,8 @@ Please check your API key and network connection, then try again.`;
 export async function tailorResume(
     jobId: string,
     filename: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    modelName: string,
 ): Promise<{
     pdfBuffer: ArrayBuffer
 }> {
@@ -276,6 +281,7 @@ export async function tailorResume(
             theme: theme,
             design_yaml_string: resumeDesignYaml,
             locale_yaml_string: resumeLocalYaml,
+            model_name: modelName,
         });
 
         const response = await fetch(`${API_BASE_URL}/tailor-resume`, {
