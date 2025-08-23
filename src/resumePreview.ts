@@ -1,4 +1,4 @@
-import * as pdfjs from './pdf.mjs';
+import * as pdfjs from '../js/pdf.mjs';
 import {els} from './dom';
 import {toggle} from './view';
 

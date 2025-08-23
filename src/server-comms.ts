@@ -3,15 +3,9 @@ import {els} from "./dom";
 import {showError, ViewState} from "./state";
 import { jwtDecode } from 'jwt-decode';
 
-declare var process: {
-    env: {
-        API_BASE_URL: string;
-        EXTENSION_SECRET_KEY: string;
-    };
-};
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const EXTENSION_SECRET_KEY = import.meta.env.VITE_EXTENSION_SECRET_KEY;
 
-const API_BASE_URL: string = process.env.API_BASE_URL;
-const EXTENSION_SECRET_KEY: string = process.env.EXTENSION_SECRET_KEY;
 let JWT_TOKEN: string | null = null;
 
 const RATE_LIMIT_ERROR_MESSAGE = `### Rate Limit Exceeded

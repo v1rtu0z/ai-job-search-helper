@@ -8,6 +8,8 @@ import {downloadBlob} from './downloads';
 import {loadingRotator} from "./loading-rotator";
 import {saveUserSettings, showUserSettings} from "./settings";
 
+import '../backdrop_overlay_style.css';
+
 let abortController: AbortController | null = null;
 
 function abortInFlight() {

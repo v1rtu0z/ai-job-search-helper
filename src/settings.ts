@@ -1,4 +1,4 @@
-import * as pdfjs from "./pdf.mjs";
+import * as pdfjs from "../js/pdf.mjs";
 import {getUserData, saveUserData, UserRelevantData} from "./storage";
 import {els} from "./dom";
 import * as serverComms from "./server-comms";
