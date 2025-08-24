@@ -3,6 +3,7 @@ export const els = {
     googleApiKeyInput: document.getElementById('google-api-key') as HTMLInputElement,
     apiKeyMessage: document.getElementById('api-key-message') as HTMLParagraphElement,
     userDetailsSection: document.getElementById('user-details-section') as HTMLDivElement,
+    loadingMessages: document.getElementById('loading-messages') as HTMLDivElement,
     resumeFileInput: document.getElementById('resume-file') as HTMLInputElement,
     resumeFileNameDiv: document.getElementById('resume-file-name') as HTMLDivElement,
     additionalDetailsTextarea: document.getElementById('additional-details') as HTMLTextAreaElement,
@@ -23,7 +24,7 @@ export const els = {
     themePrevBtn: document.getElementById('theme-prev-btn') as HTMLButtonElement,
     currentThemeDisplay: document.getElementById('current-theme-display') as HTMLDivElement,
     currentThemeImage: document.getElementById('current-theme-image') as HTMLImageElement,
-    currentThemeName: document.getElementById('current-theme-name') as HTMLDivElement,
+    currentThemeName: document.getElementById('current-theme-name') as HTMLParagraphElement,
     themeNextBtn: document.getElementById('theme-next-btn') as HTMLButtonElement,
     yamlConfigSection: document.getElementById('yaml-config-section') as HTMLDivElement,
     resumeDesignYamlInput: document.getElementById('resume-design-yaml') as HTMLTextAreaElement,
@@ -58,4 +59,5 @@ export const els = {
     settingsExplainerOverlay: document.getElementById('settings-explainer-overlay') as HTMLDivElement,
     closeExplainerBtn: document.getElementById('close-explainer-btn') as HTMLButtonElement,
     settingsExplainerModal: document.getElementById('settings-explainer-modal') as HTMLDivElement,
+    shortcutInstructions: document.getElementById('shortcut-instructions') as HTMLParagraphElement,
 };

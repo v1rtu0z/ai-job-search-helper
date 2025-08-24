@@ -3,6 +3,9 @@ import { resolve } from 'path';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import tailwindcss from '@tailwindcss/vite';
 
+const browser = process.env.BROWSER || 'chrome';
+const manifestPath = `manifests/${browser}-manifest.json`;
+
 export default defineConfig({
     build: {
         outDir: './dist',
@@ -23,8 +26,11 @@ export default defineConfig({
         tailwindcss(),
         viteStaticCopy({
             targets: [
-                // Copies these files to the root of the dist directory
-                {src: 'manifest.json', dest: '.'},
+                {
+                    src: manifestPath,
+                    dest: '.', // Copy to the root of the 'dist' folder
+                    rename: 'manifest.json' // Rename the file to manifest.json
+                },
                 {src: 'images', dest: '.'},
                 {src: 'themes', dest: '.'},
                 {src: '*.yaml', dest: '.'},

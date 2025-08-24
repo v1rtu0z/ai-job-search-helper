@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "AI job search helper",
+  "description": "Analyzes job postings for fit, tailors resumes, and drafts cover letters using AI, based on your resume and preferences.",
+  "version": "1.0",
+  "action": {
+    "default_icon": {
+      "16": "images/icon_zoomed_16x16.png",
+      "32": "images/icon_zoomed_32x32.png",
+      "48": "images/icon_zoomed_48x48.png",
+      "128": "images/icon_zoomed_128x128.png"
+    },
+    "default_title": "AI job search helper"
+  },
+  "icons": {
+    "16": "images/icon_zoomed_16x16.png",
+    "32": "images/icon_zoomed_32x32.png",
+    "48": "images/icon_zoomed_48x48.png",
+    "128": "images/icon_zoomed_128x128.png"
+  },
+  "background": {
+    "service_worker": "js/service_worker.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html",
+    "default_icon": {
+      "16": "images/icon_zoomed_16x16.png",
+      "32": "images/icon_zoomed_32x32.png",
+      "48": "images/icon_zoomed_48x48.png",
+      "128": "images/icon_zoomed_128x128.png"
+    }
+  },
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "sidePanel",
+    "scripting",
+    "activeTab"
+  ],
+  "commands": {
+    "analyze-job-posting-shortcut": {
+      "suggested_key": {
+        "default": "Ctrl+B",
+        "mac": "Command+B"
+      },
+      "description": "Analyze the selected text for job fit."
+    }
+  },
+  "host_permissions": [
+    "<all_urls>"
+  ]
+}

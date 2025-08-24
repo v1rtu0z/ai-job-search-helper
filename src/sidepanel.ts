@@ -6,9 +6,15 @@ import {getUserData, saveUserData, updateJobCache} from './storage';
 import {arrayBufferToBase64, base64ToArrayBuffer, renderPdfPreview} from './resumePreview';
 import {downloadBlob} from './downloads';
 import {loadingRotator} from "./loading-rotator";
-import {saveUserSettings, showUserSettings} from "./settings";
+import {isFirefox, saveUserSettings, showUserSettings} from "./settings";
 
 import '../backdrop_overlay_style.css';
+import {browser} from "webextension-polyfill-ts";
+
+import * as pdfjs from "../js/pdf.mjs";
+
+// Set PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
 
 let abortController: AbortController | null = null;
 
@@ -20,6 +26,38 @@ function abortInFlight() {
 }
 
 let latestJobId: string; // todo: replace this with better history
+
+export async function getPdfText(file: File): Promise<string> {
+    const arrayBuffer = await new Response(file).arrayBuffer();
+    const pdf = await pdfjs.getDocument({data: arrayBuffer}).promise;
+    const numPages = pdf.numPages;
+    let fullText = '';
+
+    for (let i = 1; i <= numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const text = textContent.items.map((item: any) => item.str).join(' ');
+        fullText += text + ' ';
+    }
+
+    return fullText;
+}
+
+export function showSettingsExplainerPopup() {
+    if (els.settingsExplainerOverlay && els.closeExplainerBtn && els.settingsExplainerModal) {
+        els.settingsExplainerOverlay.classList.remove('hidden');
+
+        els.closeExplainerBtn.addEventListener('click', () => {
+            els.settingsExplainerOverlay.classList.add('hidden');
+        }, {once: true});
+
+        els.settingsExplainerOverlay.addEventListener('click', (event) => {
+            if (event.target === els.settingsExplainerOverlay) {
+                els.settingsExplainerOverlay.classList.add('hidden');
+            }
+        });
+    }
+}
 
 async function showMarkdown(markdown: string, isBack = false) {
     abortController = null;
@@ -69,7 +107,7 @@ function showSupportPopup() {
         // Add event listener to close button
         els.closePopupBtn.addEventListener('click', () => {
             els.sponsorshipPopupOverlay.classList.add('hidden');
-        }, { once: true }); // Use { once: true } to automatically remove the listener after it's been called once
+        }, {once: true}); // Use { once: true } to automatically remove the listener after it's been called once
 
         // Add event listener to close when clicking outside the modal
         els.sponsorshipPopupOverlay.addEventListener('click', (event) => {
@@ -145,6 +183,7 @@ async function onSearchQueryRefresh(forceRegenerate: boolean): Promise<void> {
 }
 
 async function onAnalyze(selectedText: string, isRetry = false) {
+    console.log(`onAnalyze function called with text: "${selectedText.substring(0, 50)}..."`);
     abortInFlight();
     abortController = new AbortController();
     showLoading('Analyzing job posting...');
@@ -332,6 +371,7 @@ export async function goBack() {
 }
 
 function addGlobalEventListeners() {
+    console.log("sidepanel.ts: Adding global event listeners.");
     els.backBtn.addEventListener('click', () => goBack());
 
     els.retryBtn.addEventListener('click', retryLastAction);
@@ -351,9 +391,20 @@ function addGlobalEventListeners() {
         if (!latestJobId) return;
         await onGenerateCoverLetter(latestJobId);
     });
+
+    if (isFirefox()) {
+        els.shortcutInstructions.innerHTML = els.shortcutInstructions.innerHTML.replace(
+            '+B', '+Y'
+        ).replace(
+            '+B', '+Y'
+        ).replace(
+            'Chrome extension', 'Firefox add-oOn'
+        )
+    }
 }
 
 async function showInstructions(isBack: boolean = false) {
+    console.log("sidepanel.ts: Showing instructions.");
     const data = await getUserData()
     if (!data.resumeJsonData) {
         await showUserSettings()
@@ -399,23 +450,41 @@ function showSectionWithQuery(query: string) {
 
 els.saveAllSettingsBtn.addEventListener('click', saveUserSettings);
 
-chrome.runtime.onMessage.addListener((message: {
-    type: string;
-    text?: string
-}, sender: chrome.runtime.MessageSender, sendResponse: (response?: boolean) => void) => {
+console.log("sidepanel.ts: Setting up runtime message listener.");
+browser.runtime.onMessage.addListener((message, sender) => {
+    // Log every message that comes into this listener.
+    console.log("sidepanel.ts: Message received!", {message, sender});
+
+    // Check if the incoming message is of the correct type.
     if (message.type === 'selected-text' && message.text) {
+        console.log("sidepanel.ts: Received 'selected-text' message. Starting analysis...");
+
+        // Call the asynchronous analysis function.
+        // Note: The listener will continue to execute while onAnalyze is running.
         onAnalyze(message.text).then(() => {
-                return true;
-            }
-        ).catch((error) => {
-            console.log('Error analyzing text:', error);
-            throw error
-        })
+            console.log("sidepanel.ts: onAnalyze completed successfully.");
+            // You can optionally return true here to signal to the sender that
+            // you are handling the message asynchronously.
+        }).catch((error) => {
+            // Log any errors that occur during analysis.
+            console.error('sidepanel.ts: Error analyzing text:', error);
+            // Re-throw the error to ensure it's propagated.
+            throw error;
+        });
+    } else {
+        // Log if the message type is not what we expect.
+        console.log("sidepanel.ts: Message type is not 'selected-text'. Ignoring.");
     }
-    return false;
 });
 
+
+// Execute the initial setup functions.
 addGlobalEventListeners();
 showInstructions();
 
-chrome.runtime.sendMessage({type: 'side-panel-ready'}).catch(error => console.log('Error sending side-panel-ready message:', error));
+
+console.log("sidepanel.ts: Attempting to send 'side-panel-ready' message.");
+browser.runtime.sendMessage({type: 'side-panel-ready'}).catch(error => {
+    // Log if the message fails to send, which can happen if no one is listening yet.
+    console.log('sidepanel.ts: Error sending side-panel-ready message:', error);
+});

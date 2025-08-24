@@ -1,24 +1,17 @@
+// Updated settings.ts with browser detection
 import * as pdfjs from "../js/pdf.mjs";
 import {getUserData, saveUserData, UserRelevantData} from "./storage";
 import {els} from "./dom";
 import * as serverComms from "./server-comms";
 import {hideAll, toggle} from "./view";
-import {goBack} from "./sidepanel";
+import {getPdfText, goBack, showSettingsExplainerPopup} from "./sidepanel";
+import {browser} from "webextension-polyfill-ts";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
 
-async function getPdfText(file: File): Promise<string> {
-    const arrayBuffer = await new Response(file).arrayBuffer();
-    const pdf = await pdfjs.getDocument({data: arrayBuffer}).promise;
-    const numPages = pdf.numPages;
-    let fullText = '';
-    for (let i = 1; i <= numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const text = textContent.items.map((item: any) => item.str).join(' ');
-        fullText += text + ' ';
-    }
-    return fullText;
+// Browser detection functions
+export function isFirefox(): boolean {
+    return navigator.userAgent.toLowerCase().includes('firefox');
 }
 
 // Theme configuration
@@ -148,29 +141,30 @@ async function parseAndUpdateResume(userData: UserRelevantData): Promise<void> {
 }
 
 /**
- * Displays the settings explainer popup.
- * It also sets up event listeners to close the popup.
+ * Opens options page for Firefox or shows inline settings for Chrome
  */
-function showSettingsExplainerPopup() {
-    if (els.settingsExplainerOverlay && els.closeExplainerBtn && els.settingsExplainerModal) {
-        // Show the popup by removing the 'hidden' class
-        els.settingsExplainerOverlay.classList.remove('hidden');
-
-        // Add event listener to close button
-        els.closeExplainerBtn.addEventListener('click', () => {
-            els.settingsExplainerOverlay.classList.add('hidden');
-        }, {once: true});
-
-        // Add event listener to close when clicking outside the modal
-        els.settingsExplainerOverlay.addEventListener('click', (event) => {
-            if (event.target === els.settingsExplainerOverlay) {
-                els.settingsExplainerOverlay.classList.add('hidden');
-            }
-        });
+export async function openSettings() {
+    if (isFirefox()) {
+        // For Firefox, open the options page in a new tab
+        if (typeof browser !== 'undefined') {
+            await browser.runtime.openOptionsPage();
+            window.close();
+        } else if (typeof chrome !== 'undefined') {
+            await chrome.runtime.openOptionsPage();
+        }
+    } else {
+        // For Chrome, show inline settings
+        await showUserSettings();
     }
 }
 
 export async function showUserSettings() {
+    // // Check if we're in Firefox - if so, redirect to options page
+    // if (isFirefox()) {
+    //     await openSettings();
+    //     return;
+    // }
+
     // Hide all other views
     hideAll();
 
@@ -201,7 +195,7 @@ export async function showUserSettings() {
     els.modelNameInput.value = userData.modelName || 'gemini-2.0-flash';
     els.resumeJsonDataTextarea.value = JSON.stringify(userData.resumeJsonData, null, 2) || '';
 
-    // Advanced settings toggle functionality // fixme: this has a bug sometimes
+    // Advanced settings toggle functionality
     if (els.advancedSettingsToggle && els.advancedSettingsContent && els.advancedSettingsIcon) {
         els.advancedSettingsToggle.addEventListener('click', () => {
             const isHidden = els.advancedSettingsContent.classList.contains('hidden');
@@ -263,7 +257,6 @@ export async function showUserSettings() {
 
     // Add the event listener for the additional details textarea
     els.additionalDetailsTextarea.addEventListener('input', () => {
-
         const resumeJsonData = userData.resumeJsonData || {};
         resumeJsonData.additionalDetails = els.additionalDetailsTextarea.value.trim();
         els.resumeJsonDataTextarea.value = JSON.stringify(resumeJsonData, null, 2);
@@ -274,7 +267,6 @@ export async function showUserSettings() {
     }
 }
 
-// todo: this could be integrated into the showusersettings function
 export async function saveUserSettings() {
     // Get values from the new fields
     const modelName = els.modelNameInput.value.trim();
@@ -312,9 +304,11 @@ export async function saveUserSettings() {
             userRelevantData.modelName = modelName;
         }
 
-        userRelevantData.theme = els.currentThemeName.textContent;
+        // userRelevantData.theme = els.currentThemeName.textContent;
+        userRelevantData.resumeDesignYaml = els.resumeDesignYamlInput.value;
+        userRelevantData.resumeLocalYaml = els.resumeLocalYamlInput.value;
 
-        // This is the only place we save user data now
+        // Save user data
         await saveUserData(userRelevantData);
 
         const {resumeJsonData} = await getUserData();

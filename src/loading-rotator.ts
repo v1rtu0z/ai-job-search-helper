@@ -1,3 +1,5 @@
+import {els} from "./dom";
+
 type LoadingKind = 'analyze' | 'cover-letter' | 'resume';
 
 export class LoadingMessageRotator {
@@ -13,7 +15,7 @@ export class LoadingMessageRotator {
     }) {
         this.stop();
 
-        this.container = document.getElementById('loading-messages');
+        this.container = els.loadingMessages;
         if (!this.container) return;
 
         const candidates = Array.from(

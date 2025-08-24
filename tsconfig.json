@@ -7,6 +7,8 @@
       "react", // If you're using React
       "react-dom", // If you're using React
       "jest", // If you're using Jest
+      "chrome",
+      "webextension-polyfill"
     ],
     // You might also need this if 'types' array is present but not picking up node_modules/@types
     "typeRoots": [

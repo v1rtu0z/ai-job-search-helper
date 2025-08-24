@@ -12,6 +12,17 @@
     },
     "default_title": "AI job search helper"
   },
+  "sidebar_action": {
+    "default_icon": {
+      "16": "images/icon_zoomed_16x16.png",
+      "32": "images/icon_zoomed_32x32.png",
+      "48": "images/icon_zoomed_48x48.png",
+      "128": "images/icon_zoomed_128x128.png"
+    },
+    "default_title": "AI job search helper",
+    "default_panel": "sidepanel.html",
+    "open_at_install": true
+  },
   "icons": {
     "16": "images/icon_zoomed_16x16.png",
     "32": "images/icon_zoomed_32x32.png",
@@ -19,34 +30,35 @@
     "128": "images/icon_zoomed_128x128.png"
   },
   "background": {
-    "service_worker": "js/service_worker.js"
-  },
-  "side_panel": {
-    "default_path": "sidepanel.html",
-    "default_icon": {
-      "16": "images/icon_zoomed_16x16.png",
-      "32": "images/icon_zoomed_32x32.png",
-      "48": "images/icon_zoomed_48x48.png",
-      "128": "images/icon_zoomed_128x128.png"
-    }
+    "scripts": ["js/service_worker.js"],
+    "type": "module"
   },
   "permissions": [
     "storage",
     "contextMenus",
-    "sidePanel",
     "scripting",
     "activeTab"
   ],
   "commands": {
     "analyze-job-posting-shortcut": {
       "suggested_key": {
-        "default": "Ctrl+B",
-        "mac": "Command+B"
+        "default": "Ctrl+Y",
+        "mac": "Command+Y"
       },
       "description": "Analyze the selected text for job fit."
     }
   },
+  "options_ui": {
+    "page": "options.html",
+    "browser_style": false,
+    "open_in_tab": true
+  },
   "host_permissions": [
     "<all_urls>"
-  ]
+  ],
+  "applications": {
+    "gecko": {
+      "id": "ai-job-search-helper"
+    }
+  }
 }

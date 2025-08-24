@@ -74,7 +74,6 @@
 </head>
 <body class="font-sans m-0 p-4 bg-gray-100 text-gray-800 pb-20">
 
-<!-- Header Container -->
 <div class="relative h-6 mb-6 bg-gray-100">
     <button id="back-btn"
             class="absolute left-0 w-6 h-6 flex justify-center items-center cursor-pointer p-0 bg-transparent border-0 transition-transform duration-200 ease-in-out hover:scale-125 hidden">
@@ -102,7 +101,6 @@
 
 <hr class="border-0 h-px bg-gray-300 my-4">
 
-<!-- Instruction Display -->
 <div id="instruction-display" class="view-section">
     <h3 class="text-lg font-semibold mb-4">Instructions</h3>
     <h4 class="text-base font-medium mb-2" id="instructions-greeting"></h4>
@@ -117,7 +115,7 @@
             </p>
         </li>
         <li>
-            <p>
+            <p id="shortcut-instructions">
                 Use the keyboard shortcut <strong>Ctrl+B</strong> (or <strong>Cmd+B</strong> on Mac) by default, but you
                 can change this in Chrome extension settings.
             </p>
@@ -129,7 +127,6 @@
         </li>
     </ul>
 
-    <!-- Direct Job Description Input Section -->
     <div class="bg-white p-5 rounded-lg shadow-md mb-4">
         <label for="job-description-input" class="block mb-2 font-bold">Job Description:</label>
         <textarea id="job-description-input" rows="8"
@@ -172,14 +169,11 @@
 </div>
 
 
-<!-- Markdown Output Section -->
 <div id="markdown-output-section" class="bg-white p-5 rounded-lg shadow-md mb-4 hidden">
-    <!-- Tip about extending additional details -->
     <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 rounded-r-lg">
         <div class="flex">
             <div class="flex-shrink-0">
-                <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
-                     fill="currentColor">
+                <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                     <path fill-rule="evenodd"
                           d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
                           clip-rule="evenodd"/>
@@ -194,43 +188,38 @@
         </div>
     </div>
 
-    <!-- Markdown content with proper sizing and styling -->
     <div id="markdown-content"
          class="prose prose-sm max-w-none mb-6 p-4 bg-gray-50 rounded-lg border overflow-auto"></div>
 
     <div id="resume-preview-container"
          class="w-full min-h-96 overflow-auto border rounded-lg bg-gray-50 relative hidden">
-        <!-- Zoom Controls - using your existing element names -->
         <div class="absolute top-2 right-2 z-10 flex gap-2" id="zoom-controls">
             <button id="zoom-in-btn"
                     class="w-8 h-8 bg-white border border-gray-300 rounded-full shadow-md hover:bg-gray-50 flex items-center justify-center transition-colors duration-200"
                     title="Zoom In">
-                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-gray-600" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                 </svg>
             </button>
             <button id="zoom-out-btn"
                     class="w-8 h-8 bg-white border border-gray-300 rounded-full shadow-md hover:bg-gray-50 flex items-center justify-center transition-colors duration-200"
                     title="Zoom Out">
-                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-gray-600" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
                 </svg>
             </button>
         </div>
     </div>
 
-    <!-- Cover Letter Section -->
     <div class="mt-6">
         <label for="cover-letter-textarea" id="cover-letter-textarea-title" class="block mb-2 font-bold">
             Cover letter
         </label>
 
-        <!-- Warning about AI-generated cover letters -->
         <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-4 rounded-r-lg hidden" id="cover-letter-warning">
             <div class="flex">
                 <div class="flex-shrink-0">
-                    <svg class="h-5 w-5 text-amber-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
-                         fill="currentColor">
+                    <svg class="h-5 w-5 text-amber-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                         <path fill-rule="evenodd"
                               d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
                               clip-rule="evenodd"/>
@@ -249,7 +238,6 @@
                   class="w-full h-96 p-3 border border-gray-300 rounded box-border font-sans text-sm leading-6 resize-y hidden"></textarea>
     </div>
 
-    <!-- Action Buttons -->
     <div class="mt-6 space-y-3">
         <button id="tailor-resume-btn"
                 class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600 transition-colors duration-200 hidden">
@@ -261,7 +249,7 @@
         </button>
         <button id="download-tailored-resume-btn"
                 class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600 transition-colors duration-200 hidden flex items-center justify-center">
-            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            <svg class="w-5 h-5 mr-2" stroke="currentColor" viewBox="0 0 24 24"
                  xmlns="http://www.w3.org/2000/svg">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -270,7 +258,7 @@
         </button>
         <button id="download-cover-letter-btn"
                 class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600 transition-colors duration-200 hidden flex items-center justify-center">
-            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            <svg class="w-5 h-5 mr-2" stroke="currentColor" viewBox="0 0 24 24"
                  xmlns="http://www.w3.org/2000/svg">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -284,7 +272,6 @@
     </div>
 </div>
 
-<!-- Loading Spinner Section -->
 <div id="loading-spinner-section" class="bg-white p-5 rounded-lg shadow-md mb-4 hidden">
     <div class="loading-spinner"></div>
     <p id="loading-spinner-title" class="text-center"></p>
@@ -358,20 +345,16 @@
     </div>
 </div>
 
-<!-- Settings View -->
 <div id="settings-view" class="hidden p-4 space-y-4">
 
-    <!-- User Details Section -->
     <div id="user-details-section" class="bg-white p-5 rounded-lg shadow-md">
         <p class="mb-4">Let the AI know a bit about you:</p>
 
-        <!-- Resume File Upload -->
-        <label for="resume-file" class="block mb-2 font-bold">Upload your Resume (PDF or TXT):</label>
+        <label for="resume-file" class="block mb-2 font-bold">📄 Upload your Resume (PDF or TXT):</label>
         <div id="resume-file-name" class="mb-3"></div>
         <input type="file" id="resume-file" accept=".pdf,.txt"
                class="w-full p-3 mb-4 border border-gray-300 rounded box-border">
 
-        <!-- Additional Details -->
         <label for="additional-details" class="block mb-2 font-bold">Additional Details:</label>
         <textarea id="additional-details" rows="4"
                   placeholder="Information like preferred roles, industries, locations, salary ranges..."
@@ -379,17 +362,15 @@
         <p id="user-details-message" class="text-green-600 mt-3"></p>
     </div>
 
-    <!-- Theme Selection Section -->
     <div id="theme-selection-section" class="bg-white p-5 rounded-lg shadow-md">
-        <h3 class="text-lg font-semibold mb-4">Choose a theme for your tailored resumes</h3>
+        <h3 class="text-lg font-semibold mb-4">🎨 Choose a theme for your tailored resumes</h3>
         <h6 class="text-sm text-gray-500 mb-4">⬅ Expand the side panel for a closer look at the theme.</h6>
 
-        <!-- Theme Navigation -->
         <div class="flex items-center justify-between mb-4">
             <button id="theme-prev-btn"
                     class="w-8 h-8 bg-gray-100 border border-gray-300 rounded-full shadow-sm hover:bg-gray-200 flex items-center justify-center transition-colors duration-200"
                     title="Previous Theme">
-                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-gray-600" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                 </svg>
             </button>
@@ -399,8 +380,7 @@
                      id="current-theme-display">
                     <div class="flex justify-center mb-3">
                         <img id="current-theme-image" alt="Classic Theme"
-                             class="w-full h-auto object-contain rounded shadow-sm"
-                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                             class="w-full h-auto object-contain rounded shadow-sm">
                         <div id="theme-fallback" class="hidden text-gray-500 text-lg bg-gray-200 p-8 rounded">Classic
                         </div>
                     </div>
@@ -411,13 +391,12 @@
             <button id="theme-next-btn"
                     class="w-8 h-8 bg-gray-100 border border-gray-300 rounded-full shadow-sm hover:bg-gray-200 flex items-center justify-center transition-colors duration-200"
                     title="Next Theme">
-                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-gray-600" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                 </svg>
             </button>
         </div>
 
-        <!-- Theme indicators -->
         <div class="flex justify-center space-x-2">
             <div class="theme-indicator w-2 h-2 bg-blue-500 rounded-full cursor-pointer" data-theme="classic"
                  title="classic"></div>
@@ -434,11 +413,10 @@
         <input type="hidden" id="selected-theme" value="classic">
     </div>
 
-    <!-- Advanced Settings Section -->
     <div id="advanced-settings-toggle"
          class="bg-gray-200 p-4 rounded-lg shadow-sm cursor-pointer flex justify-between items-center transition-colors duration-200 hover:bg-gray-300">
-        <h3 class="text-md font-semibold text-gray-800">Advanced Settings</h3>
-        <svg id="advanced-settings-icon" class="w-5 h-5 text-gray-600 transition-transform duration-200" fill="none"
+        <h3 class="text-md font-semibold text-gray-800">⚙️ Advanced Settings</h3>
+        <svg id="advanced-settings-icon" class="w-5 h-5 text-gray-600 transition-transform duration-200"
              stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
         </svg>
@@ -447,7 +425,6 @@
     <div id="advanced-settings-content" class="hidden">
         <div class="bg-white p-5 rounded-lg shadow-md mb-4">
 
-            <!-- Resume JSON Data -->
             <div class="mb-4">
                 <label for="resume-json-data" class="block mb-2 font-bold">Resume JSON Data: (this is the result of
                     parsing your resume, NOTE: changing this overrides your resume and additional details
@@ -461,7 +438,6 @@
             <div id="google-ai-config-section" class="mb-4 hidden">
                 <h3 class="text-lg font-semibold mb-4">Google AI settings</h3>
 
-                <!-- API Key Section -->
                 <div id="api-key-section">
                     <label for="google-api-key" class="block mb-2 font-bold">Google API Key:</label>
                     <p class="mb-4">You can set up your free tier key <a href="https://aistudio.google.com/app/apikey"
@@ -477,7 +453,6 @@
                     <p id="api-key-message" class="text-red-600 mt-3"></p>
                 </div>
 
-                <!-- Model Name -->
                 <div class="mb-4">
                     <label for="model-name" class="block mb-2 font-bold">Model Name:</label>
                     <input type="text" id="model-name" value="gemini-2.0-flash"
@@ -485,7 +460,6 @@
                 </div>
             </div>
 
-            <!-- Resume YAML Configuration Section -->
             <div id="yaml-config-section" class="mb-4">
                 <h3 class="text-lg font-semibold mb-4">Tailored Resume Configuration</h3>
                 <p class="text-sm text-gray-600 mb-4">These fields are for advanced users who want to customize their
@@ -512,50 +486,19 @@
         </div>
     </div>
 
-    <!-- Save button moved outside the advanced section -->
     <button id="save-all-settings-btn"
             class="bg-blue-500 text-white py-3 px-5 border-0 rounded cursor-pointer w-full text-base hover:bg-blue-600">
-        Save All Settings
+        💾 Save All Settings
     </button>
 </div>
 
-<!-- Sponsorship Popup Overlay and Modal -->
-<div id="sponsorship-popup-overlay"
-     class="fixed inset-0 backdrop-overlay flex items-center justify-center z-50 hidden transition-opacity duration-300">
-    <div id="sponsorship-popup-modal"
-         class="bg-white p-6 rounded-lg shadow-xl text-center max-w-sm w-full mx-4 relative">
-        <!-- Close Button -->
-        <button id="close-popup-btn"
-                class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 cursor-pointer p-1">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd"
-                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                      clip-rule="evenodd"/>
-            </svg>
-        </button>
-        <p class="text-xl font-bold mb-2">Hard Work Pays Off!</p>
-        <p class="text-gray-700 mb-6">
-            It looks like you're working hard to land your next role. I wish you the best of luck in your job search!
-        </p>
-        <p class="text-gray-700 mb-6">
-            If you get hired, or simply find this extension helpful, please consider supporting the project.
-        </p>
-        <a href="https://buymeacoffee.com/v1rtu0z96" target="_blank"
-           class="inline-block bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-bold py-2 px-4 rounded-full shadow-lg transition-colors duration-200">
-            Buy me a coffee
-        </a>
-    </div>
-</div>
-
-<!-- Settings Explainer Popup Overlay and Modal -->
 <div id="settings-explainer-overlay"
      class="fixed inset-0 backdrop-overlay flex items-center justify-center z-50 hidden transition-opacity duration-300">
     <div id="settings-explainer-modal"
          class="bg-white p-6 rounded-lg shadow-xl text-left max-w-xl w-full mx-4 relative">
-        <!-- Close Button -->
         <button id="close-explainer-btn"
                 class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 cursor-pointer p-1">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20">
                 <path fill-rule="evenodd"
                       d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
                       clip-rule="evenodd"/>
@@ -581,6 +524,32 @@
             interested in, preferred industries, or salary expectations. This helps the AI be even more precise in its
             suggestions.
         </p>
+    </div>
+</div>
+
+<div id="sponsorship-popup-overlay"
+     class="fixed inset-0 backdrop-overlay flex items-center justify-center z-50 hidden transition-opacity duration-300">
+    <div id="sponsorship-popup-modal"
+         class="bg-white p-6 rounded-lg shadow-xl text-center max-w-sm w-full mx-4 relative">
+        <button id="close-popup-btn"
+                class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 cursor-pointer p-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20">
+                <path fill-rule="evenodd"
+                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                      clip-rule="evenodd"/>
+            </svg>
+        </button>
+        <p class="text-xl font-bold mb-2">Hard Work Pays Off!</p>
+        <p class="text-gray-700 mb-6">
+            It looks like you're working hard to land your next role. I wish you the best of luck in your job search!
+        </p>
+        <p class="text-gray-700 mb-6">
+            If you get hired, or simply find this extension helpful, please consider supporting the project.
+        </p>
+        <a href="https://buymeacoffee.com/v1rtu0z96" target="_blank"
+           class="inline-block bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-bold py-2 px-4 rounded-full shadow-lg transition-colors duration-200">
+            Buy me a coffee
+        </a>
     </div>
 </div>
 
