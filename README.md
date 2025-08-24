@@ -1,51 +1,73 @@
-# **AI job search helper**
+# **AI Job Search Helper**
 
-The AI job search helper is a Chrome extension designed to help you analyze job postings and tailor your resume and cover letters for a better fit. By leveraging a context menu, you can highlight a job posting on any webpage and instantly get a detailed analysis or generate customized application materials.
+The AI Job Search Helper is a browser extension designed to help you analyze job postings and tailor your resume and cover letters for a better fit. You can start an analysis by highlighting a job posting on any webpage, using a keyboard shortcut, or by simply pasting text into the sidebar.
 
 ## **Features**
 
-* **Analyze Job Posting Fit:** Highlight a job posting and a mini-window will appear next to your selection, providing a quick analysis of your fit for the role.  
-* **Tailor Resume:** Use the assistant to suggest specific changes to your resume to better match the selected job posting.  
+* **Analyze Job Posting Fit:** Get a detailed analysis of how well your resume matches a job description in a dedicated side panel.
+* **Tailor Resume:** Instead of just suggesting changes, the assistant creates a completely new, tailored version of your resume based on the job posting and your original resume.
 * **Draft Cover Letter:** Automatically generate a draft of a cover letter based on your resume and the job description.
+
+## **Upcoming Features**
+
+* **Iterations on tailored docs:** Improve the quality of the tailored docs by iterating on them.
+* **Resume Analysis:** Analyze the resume and suggest changes to improve it.
+* **Better history:** using job id in history instead of knowing just the latest one
+* **Application Tracking:** Application calendar with reminders to reach out to the company with drafted messages.
 
 ## **Getting Started**
 
 ### **Prerequisites**
 
-* You need to have [Node.js](https://nodejs.org/en) installed to build the TypeScript files.  
-* Google Chrome browser.
+* You need to have [Node.js](https://nodejs.org/en) installed to build the TypeScript files.
+* You can use either **Google Chrome** or **Mozilla Firefox**.
 
 ### **Installation**
 
 1. **Clone the repository:**  
-   git clone https://github.com/YourPersonalUsername/ai-job-search-helper.git  
+   git clone https://github.com/v1rtu0z/ai-job-search-helper.git  
    cd ai-job-search-helper
 
-   *(Replace YourPersonalUsername with your GitHub username)*  
 2. **Install dependencies:**  
    npm install
 
-3. **Build the project:**  
-   npm run build
+3. Build the project:  
+   This will compile the TypeScript files into the js/ directory for your chosen browser.  
+   npm run build:chrome  
+   \# or  
+   npm run build:firefox
 
-   This will compile the TypeScript files into the js/ directory.
+### **Loading the Extension**
 
-### **Loading the Extension in Chrome**
+#### **For Google Chrome**
 
-1. Open Google Chrome and navigate to chrome://extensions.  
-2. Enable **Developer mode** by toggling the switch in the top-right corner.  
-3. Click on **"Load unpacked"**.  
+1. Open Google Chrome and navigate to chrome://extensions.
+2. Enable **Developer mode** by toggling the switch in the top-right corner.
+3. Click on **"Load unpacked"**.
 4. Select the ai-job-search-helper project folder.
 
-The extension is now installed and ready to use\!
+#### **For Mozilla Firefox**
+
+1. Open Mozilla Firefox and navigate to about:debugging\#/runtime/this-firefox.
+2. Click on **"Load Temporary Add-on..."**.
+3. Navigate to your ai-job-search-helper project folder.
+4. Select the manifest.json file inside the folder.
+
+The extension is now installed and ready to use\! We're also working on getting this add-on into the official Chrome and Firefox web stores soon.
+
+### **Server improvements**
+
+Check out the [server repo](https://github.com/v1rtu0z/AI-job-search-helper-renderCVserver) for the server code.
 
 ## **Usage**
 
-1. Navigate to any webpage with a job posting.  
-2. Highlight the text of the job description.  
-3. Right-click on the selected text.  
-4. Select the **"Analyze Job Posting Fit"** option from the context menu.  
-5. A tooltip-style window will appear next to your selection with a summary of the job fit.
+First, you need to **upload your resume** in the side panel.
+
+You can open the side panel and start an analysis in one of three ways:
+
+* **Context Menu:** Navigate to any webpage with a job posting, highlight the text of the job description, right-click on the selection, and choose the **"Analyze Job Posting Fit"** option.
+* **Keyboard Shortcut:** Press **Ctrl \+ B** (or MacCtrl \+ B on macOS) for Chrome or **Ctrl \+ Y** (or MacCtrl \+ Y on macOS) for Firefox to open the side panel and analyze any highlighted text.
+* **Toolbar Icon:** Click the extension's icon in your browser's toolbar. You can then paste the job description text into the side panel.
 
 ## **Contributing**
 
@@ -53,4 +75,4 @@ We welcome contributions\! If you would like to contribute, please fork the repo
 
 ## **License**
 
-This project is licensed under the MIT License \- see the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.
+This project is licensed under  a modified MIT License with a non-commercial clause. See the full [LICENSE](LICENSE.md) file for details.
