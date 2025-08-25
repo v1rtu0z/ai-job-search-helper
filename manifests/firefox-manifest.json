@@ -56,9 +56,10 @@
   "host_permissions": [
     "<all_urls>"
   ],
-  "applications": {
+  "browser_specific_settings": {
     "gecko": {
-      "id": "ai-job-search-helper"
+      "id": "ai-job-search-helper@v1rtu0z.github.com",
+      "strict_min_version": "109.0"
     }
   }
 }

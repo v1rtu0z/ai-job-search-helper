@@ -113,11 +113,11 @@ async function parseAndUpdateResume(userData: UserRelevantData): Promise<void> {
     els.userDetailsMessage.style.color = 'blue';
 
     try {
-        const additionalDetails = els.additionalDetailsTextarea.value.trim();
         const {
             search_query,
             resume_data
-        } = await serverComms.getResumeJson(userData.resumeFileContent, additionalDetails, userData.modelName);
+        } = await serverComms.getResumeJson(userData.resumeFileContent, userData.modelName);
+        resume_data.additionalDetails = els.additionalDetailsTextarea.value.trim();
 
         // Update the resume JSON data
         userData.linkedinSearchQuery = search_query;

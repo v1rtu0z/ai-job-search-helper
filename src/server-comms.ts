@@ -91,7 +91,7 @@ function isTokenExpired(token: string): boolean {
     }
 }
 
-export async function getResumeJson(resumeFileContent: string, additionalDetails: string, modelName: string): Promise<{
+export async function getResumeJson(resumeFileContent: string, modelName: string): Promise<{
     search_query: string,
     resume_data: any
 }> {
@@ -117,7 +117,6 @@ export async function getResumeJson(resumeFileContent: string, additionalDetails
             throw new Error(serverResponse.error || 'Failed to get resume JSON from server.');
         }
 
-        serverResponse.addtional_details = additionalDetails;
         return serverResponse;
     } catch (error: any) {
         console.error('Error getting resume JSON from server:', error);
