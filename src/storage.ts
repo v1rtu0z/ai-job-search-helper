@@ -24,6 +24,7 @@ export interface UserRelevantData {
 export async function getUserData(): Promise<UserRelevantData> {
     const {userRelevantData} = await chrome.storage.local.get('userRelevantData');
     return userRelevantData ?? {
+        googleApiKey: '',
         modelName: 'gemini-2.0-flash',
         theme: 'engineeringclassic',
         currentThemeIndex: 3,

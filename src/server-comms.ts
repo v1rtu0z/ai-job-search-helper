@@ -1,12 +1,14 @@
 import {getUserData} from "./storage";
 import {els} from "./dom";
 import {showError, ViewState} from "./state";
-import { jwtDecode } from 'jwt-decode';
+import {jwtDecode} from 'jwt-decode';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const EXTENSION_SECRET_KEY = import.meta.env.VITE_EXTENSION_SECRET_KEY;
 
 let JWT_TOKEN: string | null = null;
+
+// fixme: model name gets passed to the methods here but api key gets sourced from settings
 
 const RATE_LIMIT_ERROR_MESSAGE = `### Rate Limit Exceeded
 It looks like you've used the service a lot in a short amount of time! To help with the costs of cloud compute and AI APIs, we've set usage limits.
@@ -63,7 +65,7 @@ async function getAuthHeadersAndBody(data: any) {
     const {googleApiKey} = await getUserData();
     const body = {
         ...data,
-        gemini_api_key: googleApiKey || null
+        gemini_api_key: googleApiKey || ''
     };
 
     return {
@@ -95,7 +97,6 @@ export async function getResumeJson(resumeFileContent: string, additionalDetails
 }> {
     const {headers, body} = await getAuthHeadersAndBody({
         resume_content: resumeFileContent,
-        additional_details: additionalDetails,
         model_name: modelName,
     });
 
@@ -111,12 +112,13 @@ export async function getResumeJson(resumeFileContent: string, additionalDetails
             return;
         }
 
+        const serverResponse = await response.json();
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to get resume JSON from server.');
+            throw new Error(serverResponse.error || 'Failed to get resume JSON from server.');
         }
 
-        return await response.json();
+        serverResponse.addtional_details = additionalDetails;
+        return serverResponse;
     } catch (error: any) {
         console.error('Error getting resume JSON from server:', error);
         throw error;
