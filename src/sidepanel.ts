@@ -398,7 +398,7 @@ function addGlobalEventListeners() {
         ).replace(
             '+B', '+Y'
         ).replace(
-            'Chrome extension', 'Firefox add-oOn'
+            'Chrome extension', 'Firefox add-On'
         )
     }
 }
