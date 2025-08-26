@@ -1,7 +1,7 @@
 import * as serverComms from "./server-comms";
 import {els} from './dom';
 import {hideAll, setHTML, showLoading, toggle} from './view';
-import {converter, showError, stateMachine, ViewState} from './state';
+import {showError, stateMachine, ViewState} from './state';
 import {getUserData, saveUserData, updateJobCache} from './storage';
 import {arrayBufferToBase64, base64ToArrayBuffer, renderPdfPreview} from './resumePreview';
 import {downloadBlob} from './downloads';
@@ -59,12 +59,12 @@ export function showSettingsExplainerPopup() {
     }
 }
 
-async function showMarkdown(markdown: string, isBack = false) {
+async function showAnalysis(html: string, isBack = false) {
     abortController = null;
     hideAll();
-    setHTML(els.markdownContent, converter.makeHtml(markdown));
-    toggle(els.markdownOutputSection, true);
-    toggle(els.markdownContent, true);
+    setHTML(els.analysisContent, html);
+    toggle(els.outputSection, true);
+    toggle(els.analysisContent, true);
     toggle(els.tailorResumeBtn, true);
     toggle(els.generateCoverLetterBtn, true);
     toggle(els.retryBtn, true);
@@ -78,7 +78,7 @@ async function showCoverLetter(filename: string, content: string, isBack = false
     abortController = null;
     hideAll();
     toggle(els.coverLetterWarning, true);
-    toggle(els.markdownOutputSection, true);
+    toggle(els.outputSection, true);
     els.coverLetterTextarea.value = content;
     toggle(els.coverLetterTextarea, true);
     toggle(els.downloadCoverLetterBtn, true);
@@ -122,7 +122,7 @@ function showSupportPopup() {
 export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, isBack = false) {
     abortController = null;
     hideAll();
-    toggle(els.markdownOutputSection, true);
+    toggle(els.outputSection, true);
     toggle(els.backBtn, true);
     toggle(els.settingsBtn, true);
     toggle(els.generateCoverLetterBtn, true);
@@ -176,130 +176,188 @@ async function onSearchQueryRefresh(forceRegenerate: boolean): Promise<void> {
 
     showLoading('Generating a personalized LinkedIn search query...', false);
 
-    const searchQuery = await serverComms.generateSearchQuery(userRelevantData.modelName);
+    const searchQuery = await serverComms.generateSearchQuery();
     userRelevantData.linkedinSearchQuery = searchQuery;
     await saveUserData(userRelevantData);
     showSectionWithQuery(searchQuery);
 }
 
 async function onAnalyze(selectedText: string, isRetry = false) {
-    console.log(`onAnalyze function called with text: "${selectedText.substring(0, 50)}..."`);
-    abortInFlight();
-    abortController = new AbortController();
-    showLoading('Analyzing job posting...');
+    console.log(`[onAnalyze] Function called. isRetry: ${isRetry}`);
+    console.log(`[onAnalyze] Input text (first 50 chars): "${selectedText.substring(0, 50)}..."`);
 
-    loadingRotator.start('analyze', {
-        intervalMs: 6000,
-        stopOn: abortController.signal,
-    });
+    abortInFlight();
+
     try {
         let jobPostingText = selectedText.trim().replace(/\n/g, ' ');
         if (jobPostingText.length === 0) {
+            console.error('[onAnalyze] Error: Empty job posting text.');
             throw new Error('Empty job posting text.');
         }
-        const {jobPostingCache, modelName} = await getUserData();
 
+        const {jobPostingCache} = await getUserData();
+        console.log('[onAnalyze] Fetched user data. Cache size:', Object.keys(jobPostingCache || {}).length);
+
+        // Caching Logic
         if (!isRetry && jobPostingText && jobPostingCache) {
+            console.log('[onAnalyze] Starting cache lookup...');
             for (const jobId in jobPostingCache) {
-                let jobTitle = jobId.split(' @ ')[0].toLowerCase();
-                let companyName = jobId.split(' @ ')[1].toLowerCase();
+                const parts = jobId.split(' @ ');
+                if (parts.length < 2) continue; // Skip malformed cache keys
+
+                const jobTitleFromCache = parts[0].toLowerCase();
+                const companyNameFromCache = parts[1].toLowerCase();
                 const lowercaseJobText = jobPostingText.toLowerCase();
-                if (lowercaseJobText.includes(jobTitle) && lowercaseJobText.includes(companyName)) {
+
+                console.log(`[onAnalyze] Checking cache key: "${jobId}"`);
+                console.log(`[onAnalyze] Looking for "${jobTitleFromCache}" and "${companyNameFromCache}" in the selected text.`);
+
+                if (lowercaseJobText.includes(jobTitleFromCache) && lowercaseJobText.includes(companyNameFromCache)) {
                     const rec = jobPostingCache[jobId];
-                    return {jobId, companyName: rec.CompanyName, jobAnalysis: rec.Analysis};
+                    console.log(`[onAnalyze] CACHE HIT! Returning cached data for: "${jobId}"`);
+                    await showAnalysis(rec.Analysis);
+                    return;
                 }
             }
+            console.log('[onAnalyze] CACHE MISS. No matching entry found.');
         }
 
+        abortController = new AbortController();
+        showLoading('Analyzing job posting...');
+        loadingRotator.start('analyze', {
+            intervalMs: 6000,
+            stopOn: abortController.signal,
+        });
+        console.log('[onAnalyze] Calling server for new analysis...');
         const {
             jobId,
             companyName,
             jobAnalysis
-        } = await serverComms.analyzeJobPosting(selectedText, abortController.signal, modelName);
+        } = await serverComms.analyzeJobPosting(selectedText, abortController.signal);
 
         latestJobId = jobId;
+        console.log(`[onAnalyze] Server response received. New jobId: "${jobId}"`);
+        console.log('[onAnalyze] Updating cache...');
+
         await updateJobCache(jobId, r => {
             r.jobPostingText = jobPostingText;
             r.CompanyName = companyName;
             r.Analysis = jobAnalysis;
         });
-        await showMarkdown(jobAnalysis);
+
+        console.log('[onAnalyze] Cache updated successfully. Showing output.');
+        await showAnalysis(jobAnalysis);
+
     } catch (e: any) {
+        console.error('[onAnalyze] Analysis failed. Error:', e);
         showError(e?.message ?? 'Unexpected error during analysis.', ViewState.Analysis);
     } finally {
+        console.log('[onAnalyze] onAnalyze finished. Stopping loading spinner.');
         loadingRotator.stop();
         abortController = null;
     }
 }
 
 async function onGenerateCoverLetter(jobId: string, isRetry = false) {
+    console.log(`[onGenerateCoverLetter] Function called. isRetry: ${isRetry}. JobId: "${jobId}"`);
+
     abortInFlight();
     abortController = new AbortController();
     showLoading('Drafting a cover letter...');
-
     loadingRotator.start('cover-letter', {
         intervalMs: 6000,
         stopOn: abortController.signal,
     });
-    console.log('(before try) Generating cover letter for job ID:', jobId);
+
     try {
-        const {jobPostingCache, resumeJsonData, modelName} = await getUserData();
+        const {jobPostingCache, resumeJsonData} = await getUserData();
+        console.log(`[onGenerateCoverLetter] Fetched user data. Looking for jobId: "${jobId}" in cache.`);
 
         if (!isRetry && jobPostingCache[jobId]?.CoverLetter) {
-            return jobPostingCache[jobId].CoverLetter;
+            console.log(`[onGenerateCoverLetter] CACHE HIT! Returning cached cover letter for: "${jobId}"`);
+            const cachedLetter = jobPostingCache[jobId].CoverLetter;
+            await showCoverLetter(cachedLetter.filename, cachedLetter.content);
+            return cachedLetter;
         }
 
-        console.log('Generating cover letter for job ID:', jobId);
-        const {content} = await serverComms.generateCoverLetter(jobId, abortController.signal, modelName);
-        const filename = `${resumeJsonData.personal.full_name}_cover_letter_${jobPostingCache[jobId].CompanyName}.txt`;
+        console.log(`[onGenerateCoverLetter] CACHE MISS. Calling server for new cover letter for: "${jobId}"`);
+        const {content} = await serverComms.generateCoverLetter(jobId, abortController.signal);
+
+        const companyName = jobPostingCache[jobId]?.CompanyName || 'UnknownCompany';
+        const filename = `${resumeJsonData.personal.full_name}_cover_letter_${companyName}.txt`;
+        console.log(`[onGenerateCoverLetter] Server response received. Filename: "${filename}"`);
+
+        console.log('[onGenerateCoverLetter] Awaiting cache update...');
         await updateJobCache(jobId, r => {
             r.CoverLetter = {filename, content};
         });
+
+        console.log('[onGenerateCoverLetter] Cache updated successfully. Showing cover letter.');
         await showCoverLetter(filename, content);
+        return {filename, content};
     } catch (e: any) {
+        console.error('[onGenerateCoverLetter] Failed to draft cover letter. Error:', e);
         showError(e?.message ?? 'Failed to draft a cover letter.', ViewState.CoverLetter);
     } finally {
+        console.log('[onGenerateCoverLetter] Finished. Stopping loading spinner.');
+        loadingRotator.stop();
         abortController = null;
     }
 }
 
 async function onTailorResume(jobId: string, isRetry = false) {
+    console.log(`[onTailorResume] Function called. isRetry: ${isRetry}. JobId: "${jobId}"`);
+
     abortInFlight();
     abortController = new AbortController();
     showLoading('Tailoring resume...');
-
     loadingRotator.start('resume', {
         intervalMs: 6000,
         stopOn: abortController.signal,
     });
+
     try {
         const {
             resumeJsonData,
-            jobPostingCache,
-            modelName
+            jobPostingCache
         } = await getUserData();
+        console.log(`[onTailorResume] Fetched user data. Looking for jobId: "${jobId}" in cache.`);
+
 
         if (!isRetry && jobPostingCache[jobId]?.TailoredResume) {
+            console.log(`[onTailorResume] CACHE HIT! Returning cached tailored resume for: "${jobId}"`);
             const {filename, pdfArrayBufferInBase64} = jobPostingCache[jobId].TailoredResume;
-            const pdfBuffer = base64ToArrayBuffer(pdfArrayBufferInBase64)
-            return {filename, pdfBuffer}
+            const pdfBuffer = base64ToArrayBuffer(pdfArrayBufferInBase64);
+            await showResumePreview(filename, pdfBuffer);
+            return {filename, pdfBuffer};
         }
 
+        console.log(`[onTailorResume] CACHE MISS. Calling server for new tailored resume for: "${jobId}"`);
+        const companyName = jobPostingCache[jobId]?.CompanyName || 'UnknownCompany';
         const filename = `${
             resumeJsonData.personal.full_name.toLowerCase().replace(/\s+/g, '_')
         }_resume_${
-            jobPostingCache[jobId].CompanyName.toLowerCase().replace(/\s+/g, '_'
-            )
+            companyName.toLowerCase().replace(/\s+/g, '_')
         }.pdf`;
-        const {pdfBuffer} = await serverComms.tailorResume(jobId, filename, abortController.signal, modelName);
+
+        const {pdfBuffer} = await serverComms.tailorResume(jobId, filename, abortController.signal);
+        console.log(`[onTailorResume] Server response received for filename: "${filename}"`);
+
+        console.log('[onTailorResume] Awaiting cache update...');
         await updateJobCache(jobId, r => {
             const pdfArrayBufferInBase64 = arrayBufferToBase64(pdfBuffer);
             r.TailoredResume = {filename, pdfArrayBufferInBase64};
-        })
+        });
+
+        console.log('[onTailorResume] Cache updated successfully. Showing resume preview.');
         await showResumePreview(filename, pdfBuffer);
+        return {filename, pdfBuffer};
     } catch (e: any) {
+        console.error('[onTailorResume] Failed to tailor resume. Error:', e);
         showError(e?.message ?? 'Failed to tailor resume.', ViewState.ResumePreview);
     } finally {
+        console.log('[onTailorResume] Finished. Stopping loading spinner.');
+        loadingRotator.stop();
         abortController = null;
     }
 }
@@ -308,7 +366,8 @@ async function retryLastAction() {
     if (!latestJobId) return;
     switch (stateMachine.value) {
         case ViewState.Analysis:
-            await onAnalyze(latestJobId, true);
+            const {jobPostingCache} = await getUserData();
+            await onAnalyze(jobPostingCache[latestJobId].jobPostingText, true);
             break;
         case ViewState.CoverLetter:
             await onGenerateCoverLetter(latestJobId, true);
@@ -343,7 +402,7 @@ export async function goBack() {
     switch (prev) {
         case ViewState.Analysis: {
             if (rec?.Analysis) {
-                await showMarkdown(rec.Analysis!, true);
+                await showAnalysis(rec.Analysis!, true);
                 return;
             }
             break;

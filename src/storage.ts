@@ -12,9 +12,7 @@ export interface UserRelevantData {
     resumeFileName?: string;
     resumeFileContent?: string; // todo: this could be a local variable
     linkedinSearchQuery?: string;
-    resumeDesignYaml: string;
-    resumeLocalYaml: string;
-    theme: string; // todo: this could be read from the design yaml
+    theme: string;
     modelName: string;
     currentThemeIndex: number;
     jobPostingCache: Record<string, JobPostingCacheRecord>;
@@ -29,8 +27,6 @@ export async function getUserData(): Promise<UserRelevantData> {
         theme: 'engineeringclassic',
         currentThemeIndex: 3,
         resumesDownloaded: 0,
-        resumeDesignYaml: await fetch('default_design.yaml').then(r => r.text()),
-        resumeLocalYaml: await fetch('default_locale.yaml').then(r => r.text()),
         jobPostingCache: {}
     };
 }

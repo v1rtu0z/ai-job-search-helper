@@ -33,7 +33,6 @@ export default defineConfig({
                 },
                 {src: 'images', dest: '.'},
                 {src: 'themes', dest: '.'},
-                {src: '*.yaml', dest: '.'},
                 {src: 'js/*', dest: 'js'},
             ]
         })

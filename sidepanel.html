@@ -70,6 +70,24 @@
             color: #374151;
             font-weight: bold;
         }
+
+        .column-left {
+            float: left;
+            width: 48%; /* Adjust to control column width */
+            margin-right: 2%; /* Space between columns */
+        }
+
+        .column-right {
+            float: left;
+            width: 50%;
+        }
+
+        /* Clearfix to contain the floated elements */
+        .clearfix::after {
+            content: "";
+            clear: both;
+            display: table;
+        }
     </style>
 </head>
 <body class="font-sans m-0 p-4 bg-gray-100 text-gray-800 pb-20">
@@ -169,7 +187,7 @@
 </div>
 
 
-<div id="markdown-output-section" class="bg-white p-5 rounded-lg shadow-md mb-4 hidden">
+<div id="output-section" class="bg-white p-5 rounded-lg shadow-md mb-4 hidden">
     <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 rounded-r-lg">
         <div class="flex">
             <div class="flex-shrink-0">
@@ -188,8 +206,38 @@
         </div>
     </div>
 
-    <div id="markdown-content"
-         class="prose prose-sm max-w-none mb-6 p-4 bg-gray-50 rounded-lg border overflow-auto"></div>
+    <div id="analysis-content">
+        <div class="clearfix">
+            <div id="strengths-section" class="column-left">
+                <h3 style="color: green; font-weight: bold;">Strengths: </h3>
+                <ul>
+                    <li><strong>Strength 1:</strong> [Provide a brief, generic description of a key strength.]</li>
+                    <li><strong>Strength 2:</strong> [Provide a brief, generic description of a second key strength.]
+                    </li>
+                    <li><strong>Strength 3:</strong> [Provide a brief, generic description of a third key strength.]
+                    </li>
+                </ul>
+            </div>
+
+            <div id="areas-for-improvement-section" class="column-right">
+                <h3 style="color: red; font-weight: bold;">Areas for Improvement: </h3>
+                <ul>
+                    <li><strong>Area for Improvement 1:</strong> [Describe a point that could be strengthened on the
+                        resume or in the application materials.]
+                    </li>
+                    <li><strong>Area for Improvement 2:</strong> [Describe another area for improvement.]</li>
+                    <li><strong>Area for Improvement 3:</strong> [Describe a final area for improvement.]</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="overall-fit-section" style="clear: both; margin-top: 2rem;">
+            <h2 style="font-weight: bold;">
+                <span style="color: green;">[fit score]</span>.
+                [Overall fit description].
+            </h2>
+        </div>
+    </div>
 
     <div id="resume-preview-container"
          class="w-full min-h-96 overflow-auto border rounded-lg bg-gray-50 relative hidden">
@@ -459,30 +507,6 @@
                            class="w-full p-3 border border-gray-300 rounded box-border font-mono text-sm">
                 </div>
             </div>
-
-            <div id="yaml-config-section" class="mb-4">
-                <h3 class="text-lg font-semibold mb-4">Tailored Resume Configuration</h3>
-                <p class="text-sm text-gray-600 mb-4">These fields are for advanced users who want to customize their
-                    resume structure using YAML configuration. Check out the docs for more details.</p>
-                <div class="mb-4">
-                    <label for="resume-design-yaml" class="block mb-2 font-bold">Resume Design YAML: <a
-                            href="https://docs.rendercv.com/user_guide/structure_of_the_yaml_input_file/#design-field"
-                            target="_blank" rel="noopener noreferrer"
-                            class="text-blue-600 hover:text-blue-800">(docs)</a></label>
-                    <p class="text-sm text-gray-600 mb-2">NOTE: Changing the theme here will override whatever theme you
-                        selected above!</p>
-                    <textarea id="resume-design-yaml" rows="6"
-                              class="w-full p-3 border border-gray-300 rounded box-border font-mono text-sm"></textarea>
-                </div>
-                <div class="mb-4">
-                    <label for="resume-local-yaml" class="block mb-2 font-bold">Resume Local YAML: <a
-                            href="https://docs.rendercv.com/user_guide/structure_of_the_yaml_input_file/#locale-field"
-                            target="_blank" rel="noopener noreferrer"
-                            class="text-blue-600 hover:text-blue-800">(docs)</a></label>
-                    <textarea id="resume-local-yaml" rows="6"
-                              class="w-full p-3 border border-gray-300 rounded box-border font-mono text-sm"></textarea>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -510,7 +534,8 @@
             and instantly tailoring your resume and cover letter to match the requirements.
         </p>
         <p class="text-gray-700 mb-2">
-            To get started, please upload your resume. This is the <strong>most crucial step</strong>, as it allows the AI to learn
+            To get started, please upload your resume. This is the <strong>most crucial step</strong>, as it allows the
+            AI to learn
             about your skills and experience. The AI will then use this information to:
         </p>
         <ul class="list-disc list-inside text-gray-700 mb-4 ml-4 space-y-1">
@@ -520,7 +545,8 @@
             </li>
         </ul>
         <p class="text-gray-700">
-            The <strong>Additional Details</strong> field is a great way to give the AI more context, such as specific roles you're
+            The <strong>Additional Details</strong> field is a great way to give the AI more context, such as specific
+            roles you're
             interested in, preferred industries, or salary expectations. This helps the AI be even more precise in its
             suggestions.
         </p>
@@ -554,7 +580,6 @@
 </div>
 
 
-<script src="js/showdown.min.js"></script>
 <script type="module" src="js/pdf.mjs"></script>
 <script type="module" src="src/sidepanel.ts"></script>
 </body>

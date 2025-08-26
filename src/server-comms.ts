@@ -8,9 +8,7 @@ const EXTENSION_SECRET_KEY = import.meta.env.VITE_EXTENSION_SECRET_KEY;
 
 let JWT_TOKEN: string | null = null;
 
-// fixme: model name gets passed to the methods here but api key gets sourced from settings
-
-const RATE_LIMIT_ERROR_MESSAGE = `### Rate Limit Exceeded
+const RATE_LIMIT_ERROR_MESSAGE = `Rate Limit Exceeded
 It looks like you've used the service a lot in a short amount of time! To help with the costs of cloud compute and AI APIs, we've set usage limits.
 
 Please consider supporting the project to help us increase these limits.
@@ -62,9 +60,10 @@ async function getAuthHeadersAndBody(data: any) {
         JWT_TOKEN = token;
     }
 
-    const {googleApiKey} = await getUserData();
+    const {googleApiKey, modelName} = await getUserData();
     const body = {
         ...data,
+        model_name: modelName || '',
         gemini_api_key: googleApiKey || ''
     };
 
@@ -81,7 +80,7 @@ async function getAuthHeadersAndBody(data: any) {
 function isTokenExpired(token: string): boolean {
     if (!token) return true;
     try {
-        const { exp } = jwtDecode(token);
+        const {exp} = jwtDecode(token);
         // The exp field is a Unix timestamp (in seconds)
         const currentTime = Date.now() / 1000;
         return exp < currentTime;
@@ -91,13 +90,12 @@ function isTokenExpired(token: string): boolean {
     }
 }
 
-export async function getResumeJson(resumeFileContent: string, modelName: string): Promise<{
+export async function getResumeJson(resumeFileContent: string): Promise<{
     search_query: string,
     resume_data: any
 }> {
     const {headers, body} = await getAuthHeadersAndBody({
-        resume_content: resumeFileContent,
-        model_name: modelName,
+        resume_content: resumeFileContent
     });
 
     try {
@@ -124,11 +122,10 @@ export async function getResumeJson(resumeFileContent: string, modelName: string
     }
 }
 
-export async function generateSearchQuery(modelName: string): Promise<string> {
+export async function generateSearchQuery(): Promise<string> {
     const {resumeJsonData} = await getUserData();
     const {headers, body} = await getAuthHeadersAndBody({
-        resume_json_data: JSON.stringify(resumeJsonData),
-        model_name: modelName,
+        resume_json_data: JSON.stringify(resumeJsonData)
     });
 
     try {
@@ -162,19 +159,17 @@ export async function generateSearchQuery(modelName: string): Promise<string> {
     }
 }
 
-export async function analyzeJobPosting(jobPostingText: string, signal: AbortSignal, modelName: string): Promise<{
+export async function analyzeJobPosting(jobPostingText: string, signal: AbortSignal): Promise<{
     jobId: string,
     companyName: string,
     jobAnalysis: string
 }> {
-    let jobId: string | null = null;
     try {
         if (signal.aborted) return;
         const {resumeJsonData} = await getUserData();
         const {headers, body} = await getAuthHeadersAndBody({
             job_posting_text: jobPostingText,
-            resume_json_data: JSON.stringify(resumeJsonData),
-            model_name: modelName,
+            resume_json_data: JSON.stringify(resumeJsonData)
         });
 
         const response = await fetch(`${API_BASE_URL}/analyze-job-posting`, {
@@ -187,7 +182,8 @@ export async function analyzeJobPosting(jobPostingText: string, signal: AbortSig
 
         if (response.status === 429) {
             showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.Analysis);
-            return;
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Too many requests made to the server.');
         }
 
         if (!response.ok) {
@@ -196,15 +192,15 @@ export async function analyzeJobPosting(jobPostingText: string, signal: AbortSig
         }
 
         const data = await response.json();
-        jobId = data.job_id;
+        console.log('Job Analysis Response:', data);
         return {
-            jobId: jobId,
+            jobId: data.job_id,
             companyName: data.company_name,
             jobAnalysis: data.job_analysis,
         };
     } catch (error: any) {
         console.error('Error processing selected text:', error);
-        const errorMessage = `### Analysis Failed
+        const errorMessage = `Analysis Failed
 An error occurred while analyzing the job posting. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
 Please check your API key and network connection, then try again.`;
         showError(errorMessage, ViewState.Analysis);
@@ -212,7 +208,7 @@ Please check your API key and network connection, then try again.`;
     }
 }
 
-export async function generateCoverLetter(jobId: string, signal: AbortSignal, modelName: string): Promise<{
+export async function generateCoverLetter(jobId: string, signal: AbortSignal): Promise<{
     content: string
 }> {
     try {
@@ -220,8 +216,7 @@ export async function generateCoverLetter(jobId: string, signal: AbortSignal, mo
         const {resumeJsonData, jobPostingCache} = await getUserData();
         const {headers, body} = await getAuthHeadersAndBody({
             job_posting_text: jobPostingCache[jobId].jobPostingText,
-            resume_json_data: JSON.stringify(resumeJsonData),
-            model_name: modelName,
+            resume_json_data: JSON.stringify(resumeJsonData)
         });
 
         const response = await fetch(`${API_BASE_URL}/generate-cover-letter`, {
@@ -234,7 +229,8 @@ export async function generateCoverLetter(jobId: string, signal: AbortSignal, mo
 
         if (response.status === 429) {
             showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.CoverLetter);
-            return;
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Too many requests made to the server.');
         }
 
         if (!response.ok) {
@@ -243,12 +239,13 @@ export async function generateCoverLetter(jobId: string, signal: AbortSignal, mo
         }
 
         const data = await response.json();
+        console.log('Cover Letter Response:', data);
         return {
             content: data.content
         };
     } catch (error: any) {
         console.error('Error drafting a cover letter:', error);
-        const errorMessage = `### Cover letter generation Failed
+        const errorMessage = `Cover letter generation Failed
 An error occurred while drafting a cover letter. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
 Please check your API key and network connection, then try again.`;
         showError(errorMessage, ViewState.CoverLetter);
@@ -259,24 +256,20 @@ Please check your API key and network connection, then try again.`;
 export async function tailorResume(
     jobId: string,
     filename: string,
-    signal: AbortSignal,
-    modelName: string,
+    signal: AbortSignal
 ): Promise<{
     pdfBuffer: ArrayBuffer
 }> {
     try {
         if (signal.aborted) return;
-        const {resumeJsonData, theme, resumeDesignYaml, resumeLocalYaml, jobPostingCache} = await getUserData();
+        const {resumeJsonData, theme, jobPostingCache} = await getUserData();
         const {jobPostingText} = jobPostingCache[jobId];
 
         const {headers, body} = await getAuthHeadersAndBody({
             resume_json_data: JSON.stringify(resumeJsonData),
             job_posting_text: jobPostingText,
             filename: filename,
-            theme: theme,
-            design_yaml_string: resumeDesignYaml,
-            locale_yaml_string: resumeLocalYaml,
-            model_name: modelName,
+            theme: theme
         });
 
         const response = await fetch(`${API_BASE_URL}/tailor-resume`, {
@@ -289,7 +282,8 @@ export async function tailorResume(
 
         if (response.status === 429) {
             showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.ResumePreview);
-            return;
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Too many requests made to the server.');
         }
 
         if (!response.ok) {
@@ -297,14 +291,14 @@ export async function tailorResume(
             throw new Error(errorData.error || 'Failed to tailor resume on server.');
         }
 
-        const pdfBuffer = await response.arrayBuffer();
+        console.log('Resume Tailoring Response:', response);
 
         return {
-            pdfBuffer
+            pdfBuffer: await response.arrayBuffer()
         };
     } catch (error: any) {
         console.error('Error tailoring resume:', error);
-        const errorMessage = `### Resume Tailoring Failed`
+        const errorMessage = `Resume Tailoring Failed`
         showError(errorMessage, ViewState.ResumePreview);
         throw error;
     }

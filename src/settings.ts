@@ -5,7 +5,6 @@ import {els} from "./dom";
 import * as serverComms from "./server-comms";
 import {hideAll, toggle} from "./view";
 import {getPdfText, goBack, showSettingsExplainerPopup} from "./sidepanel";
-import {browser} from "webextension-polyfill-ts";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
 
@@ -52,34 +51,15 @@ function manageTheme(userRelevantData: UserRelevantData) {
     els.themePrevBtn.replaceWith(prevBtn);
     els.themeNextBtn.replaceWith(nextBtn);
 
-    async function updateDesignYamlForTheme() {
-        const currentTheme = themes[currentThemeIndex];
-        const currentYaml = els.resumeDesignYamlInput.value;
-
-        // If there's existing YAML, replace the theme name
-        if (currentYaml) {
-            // Find and replace theme references in YAML
-            els.resumeDesignYamlInput.value = currentYaml.replace(
-                /theme:\s*["']?[a-zA-Z0-9_-]+["']?/g,
-                `theme: ${currentTheme}`
-            );
-        } else {
-            // Set default YAML for the theme
-            els.resumeDesignYamlInput.value = `theme: "${currentTheme}"\nfont: "Source Sans 3"\nfont_size: 10pt\npage_size: letterpaper`;
-        }
-    }
-
     // Add new event listeners
     prevBtn.addEventListener('click', () => {
         currentThemeIndex = (currentThemeIndex - 1 + themes.length) % themes.length;
         updateThemeDisplay();
-        updateDesignYamlForTheme();
     });
 
     nextBtn.addEventListener('click', () => {
         currentThemeIndex = (currentThemeIndex + 1) % themes.length;
         updateThemeDisplay();
-        updateDesignYamlForTheme();
     });
 
     // Set up theme indicator clicks
@@ -90,7 +70,6 @@ function manageTheme(userRelevantData: UserRelevantData) {
         newIndicator.addEventListener('click', () => {
             currentThemeIndex = index;
             updateThemeDisplay();
-            updateDesignYamlForTheme();
         });
     });
 }
@@ -116,7 +95,7 @@ async function parseAndUpdateResume(userData: UserRelevantData): Promise<void> {
         const {
             search_query,
             resume_data
-        } = await serverComms.getResumeJson(userData.resumeFileContent, userData.modelName);
+        } = await serverComms.getResumeJson(userData.resumeFileContent);
         resume_data.additionalDetails = els.additionalDetailsTextarea.value.trim();
 
         // Update the resume JSON data
@@ -140,31 +119,8 @@ async function parseAndUpdateResume(userData: UserRelevantData): Promise<void> {
     }
 }
 
-/**
- * Opens options page for Firefox or shows inline settings for Chrome
- */
-export async function openSettings() {
-    if (isFirefox()) {
-        // For Firefox, open the options page in a new tab
-        if (typeof browser !== 'undefined') {
-            await browser.runtime.openOptionsPage();
-            window.close();
-        } else if (typeof chrome !== 'undefined') {
-            await chrome.runtime.openOptionsPage();
-        }
-    } else {
-        // For Chrome, show inline settings
-        await showUserSettings();
-    }
-}
 
 export async function showUserSettings() {
-    // // Check if we're in Firefox - if so, redirect to options page
-    // if (isFirefox()) {
-    //     await openSettings();
-    //     return;
-    // }
-
     // Hide all other views
     hideAll();
 
@@ -181,8 +137,6 @@ export async function showUserSettings() {
     manageTheme(userData);
 
     // Populate existing fields
-    els.resumeDesignYamlInput.value = userData.resumeDesignYaml;
-    els.resumeLocalYamlInput.value = userData.resumeLocalYaml;
     els.additionalDetailsTextarea.value = userData.resumeJsonData?.additionalDetails || '';
     els.resumeFileNameDiv.textContent = userData.resumeFileName ? `Current resume: ${userData.resumeFileName}` : 'No resume uploaded yet.';
 
@@ -304,9 +258,7 @@ export async function saveUserSettings() {
             userRelevantData.modelName = modelName;
         }
 
-        // userRelevantData.theme = els.currentThemeName.textContent;
-        userRelevantData.resumeDesignYaml = els.resumeDesignYamlInput.value;
-        userRelevantData.resumeLocalYaml = els.resumeLocalYamlInput.value;
+        userRelevantData.theme = els.currentThemeName.textContent;
 
         // Save user data
         await saveUserData(userRelevantData);

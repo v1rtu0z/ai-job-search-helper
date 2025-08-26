@@ -29,13 +29,12 @@ export class StateMachine {
 }
 
 export const stateMachine = new StateMachine();
-export const converter = new showdown.Converter();
 
-export function showError(message: string, state: ViewState, isBack = false) {
+export function showError(errorMessage: string, state: ViewState, isBack = false) {
     hideAll();
-    setHTML(els.markdownContent, converter.makeHtml(message));
-    toggle(els.markdownOutputSection, true);
-    toggle(els.markdownContent, true);
+    els.analysisContent.textContent = errorMessage;
+    toggle(els.outputSection, true);
+    toggle(els.analysisContent, true);
     toggle(els.retryBtn, true);
     toggle(els.backBtn, true);
     toggle(els.settingsBtn, true);
