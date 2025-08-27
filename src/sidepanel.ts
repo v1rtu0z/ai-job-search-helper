@@ -25,7 +25,7 @@ function abortInFlight() {
     }
 }
 
-let latestJobId: string; // todo: replace this with better history
+let latestJobId: string;
 
 export async function getPdfText(file: File): Promise<string> {
     const arrayBuffer = await new Response(file).arrayBuffer();
@@ -59,9 +59,7 @@ export function showSettingsExplainerPopup() {
     }
 }
 
-// fixme: removal and re-adding of event listeners is needed
-// fixme: going back from a cached view goes to instructions instead of the previous screen
-async function showAnalysis(html: string, isBack = false, jobId: string = null) {
+async function showAnalysis(html: string, jobId: string, isBack = false) {
     abortController = null;
     hideAll();
     setHTML(els.analysisContent, html);
@@ -73,10 +71,11 @@ async function showAnalysis(html: string, isBack = false, jobId: string = null) 
     toggle(els.backBtn, true);
     toggle(els.settingsBtn, true);
 
-    stateMachine.set(ViewState.Analysis, isBack);
+    stateMachine.set(ViewState.Analysis, isBack, jobId);
+    latestJobId = jobId;
 }
 
-async function showCoverLetter(filename: string, content: string, isBack = false) {
+async function showCoverLetter(filename: string, content: string, jobId: string, isBack = false) {
     abortController = null;
     hideAll();
     toggle(els.coverLetterWarning, true);
@@ -98,7 +97,8 @@ async function showCoverLetter(filename: string, content: string, isBack = false
         downloadBlob(new Blob([els.coverLetterTextarea.value], {type: 'text/plain'}), filename);
     };
 
-    stateMachine.set(ViewState.CoverLetter, isBack);
+    stateMachine.set(ViewState.CoverLetter, isBack, jobId);
+    latestJobId = jobId;
 }
 
 function showSupportPopup() {
@@ -121,7 +121,7 @@ function showSupportPopup() {
     }
 }
 
-export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, isBack = false) {
+export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, jobId: string, isBack = false) {
     abortController = null;
     hideAll();
     toggle(els.outputSection, true);
@@ -165,7 +165,8 @@ export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer
 
     await renderPdfPreview(pdfBuffer);
 
-    stateMachine.set(ViewState.ResumePreview, isBack);
+    stateMachine.set(ViewState.ResumePreview, isBack, jobId);
+    latestJobId = jobId;
 }
 
 async function onSearchQueryRefresh(forceRegenerate: boolean): Promise<void> {
@@ -217,7 +218,7 @@ async function onAnalyze(selectedText: string, isRetry = false) {
                 if (lowercaseJobText.includes(jobTitleFromCache) && lowercaseJobText.includes(companyNameFromCache)) {
                     const rec = jobPostingCache[jobId];
                     console.log(`[onAnalyze] CACHE HIT! Returning cached data for: "${jobId}"`);
-                    await showAnalysis(rec.Analysis, false, jobId);
+                    await showAnalysis(rec.Analysis, jobId, false);
                     return;
                 }
             }
@@ -248,7 +249,7 @@ async function onAnalyze(selectedText: string, isRetry = false) {
         });
 
         console.log('[onAnalyze] Cache updated successfully. Showing output.');
-        await showAnalysis(jobAnalysis);
+        await showAnalysis(jobAnalysis, jobId);
 
     } catch (e: any) {
         console.error('[onAnalyze] Analysis failed. Error:', e);
@@ -278,7 +279,7 @@ async function onGenerateCoverLetter(jobId: string, isRetry = false) {
         if (!isRetry && jobPostingCache[jobId]?.CoverLetter) {
             console.log(`[onGenerateCoverLetter] CACHE HIT! Returning cached cover letter for: "${jobId}"`);
             const cachedLetter = jobPostingCache[jobId].CoverLetter;
-            await showCoverLetter(cachedLetter.filename, cachedLetter.content);
+            await showCoverLetter(cachedLetter.filename, cachedLetter.content, jobId);
             return cachedLetter;
         }
 
@@ -295,7 +296,7 @@ async function onGenerateCoverLetter(jobId: string, isRetry = false) {
         });
 
         console.log('[onGenerateCoverLetter] Cache updated successfully. Showing cover letter.');
-        await showCoverLetter(filename, content);
+        await showCoverLetter(filename, content, jobId);
         return {filename, content};
     } catch (e: any) {
         console.error('[onGenerateCoverLetter] Failed to draft cover letter. Error:', e);
@@ -330,7 +331,7 @@ async function onTailorResume(jobId: string, isRetry = false) {
             console.log(`[onTailorResume] CACHE HIT! Returning cached tailored resume for: "${jobId}"`);
             const {filename, pdfArrayBufferInBase64} = jobPostingCache[jobId].TailoredResume;
             const pdfBuffer = base64ToArrayBuffer(pdfArrayBufferInBase64);
-            await showResumePreview(filename, pdfBuffer);
+            await showResumePreview(filename, pdfBuffer, jobId);
             return {filename, pdfBuffer};
         }
 
@@ -352,7 +353,7 @@ async function onTailorResume(jobId: string, isRetry = false) {
         });
 
         console.log('[onTailorResume] Cache updated successfully. Showing resume preview.');
-        await showResumePreview(filename, pdfBuffer);
+        await showResumePreview(filename, pdfBuffer, jobId);
         return {filename, pdfBuffer};
     } catch (e: any) {
         console.error('[onTailorResume] Failed to tailor resume. Error:', e);
@@ -364,79 +365,75 @@ async function onTailorResume(jobId: string, isRetry = false) {
     }
 }
 
-async function retryAction(jobId: string = null) {
-    let jobIdToRetry = null
-    if (jobId) {
-        jobIdToRetry = jobId;
-    } else {
-        if (latestJobId) {
-            jobIdToRetry = latestJobId;
-        } else {
-            return;
-        }
-    }
+async function retryAction() {
+    const currentJobId = stateMachine.currentJobId || latestJobId;
+    if (!currentJobId) return;
 
     switch (stateMachine.value) {
         case ViewState.Analysis:
             const {jobPostingCache} = await getUserData();
-            await onAnalyze(jobPostingCache[jobIdToRetry].jobPostingText, true);
+            await onAnalyze(jobPostingCache[currentJobId].jobPostingText, true);
             break;
         case ViewState.CoverLetter:
-            await onGenerateCoverLetter(jobIdToRetry, true);
+            await onGenerateCoverLetter(currentJobId, true);
             break;
         case ViewState.ResumePreview:
-            await onTailorResume(jobIdToRetry, true);
+            await onTailorResume(currentJobId, true);
             break;
     }
 }
 
-// TODO: Since it's possible to go to one job analysis from any of the other jobs screens, the history should
-//  also keep track of the job id of each screen and not simply the screen state
-
 export async function goBack() {
     abortInFlight();
-    let prev: ViewState;
+
+    // Handle settings case - don't change state machine
     if (els.userDetailsSection.checkVisibility()) {
-        prev = stateMachine.value;
-    } else {
-        prev = stateMachine.back()!;
-        if (!prev) {
-            prev = ViewState.Instructions;
-        }
+        // Just hide settings, don't modify history
+        const currentState = stateMachine.value;
+        const currentJobId = stateMachine.currentJobId;
+        // Re-show current view
+        await showViewForState(currentState, currentJobId, true);
+        return;
     }
-    const data = await getUserData();
-    const rec = latestJobId ? data.jobPostingCache[latestJobId] : null;
-    if (latestJobId && !rec) {
-        console.error('No job cache found for latest job id:', latestJobId);
+
+    const prev = stateMachine.back();
+    if (!prev) {
         await showInstructions(true);
         return;
     }
-    switch (prev) {
-        case ViewState.Analysis: {
+
+    await showViewForState(prev.state, prev.jobId, true);
+}
+
+// Helper function to show view based on state and job ID
+async function showViewForState(state: ViewState, jobId: string | undefined, isBack: boolean) {
+    const data = await getUserData();
+    const rec = jobId ? data.jobPostingCache[jobId] : null;
+
+    switch (state) {
+        case ViewState.Analysis:
             if (rec?.Analysis) {
-                await showAnalysis(rec.Analysis!, true);
+                await showAnalysis(rec.Analysis, jobId, isBack);
                 return;
             }
             break;
-        }
-        case ViewState.CoverLetter: {
+        case ViewState.CoverLetter:
             if (rec?.CoverLetter) {
-                await showCoverLetter(rec.CoverLetter.filename, rec.CoverLetter.content, true);
+                await showCoverLetter(rec.CoverLetter.filename, rec.CoverLetter.content, jobId, isBack);
                 return;
             }
             break;
-        }
-        case ViewState.ResumePreview: {
+        case ViewState.ResumePreview:
             if (rec?.TailoredResume) {
                 await showResumePreview(
                     rec.TailoredResume.filename,
                     base64ToArrayBuffer(rec.TailoredResume.pdfArrayBufferInBase64),
-                    true
+                    jobId,
+                    isBack
                 );
                 return;
             }
             break;
-        }
     }
     await showInstructions(true);
 }
@@ -456,15 +453,16 @@ function addGlobalEventListeners() {
     })
 
     els.tailorResumeBtn.addEventListener('click', async () => {
-        if (!latestJobId) return;
-        await onTailorResume(latestJobId);
+        const currentJobId = stateMachine.currentJobId || latestJobId;
+        if (!currentJobId) return;
+        await onTailorResume(currentJobId);
     });
 
     els.generateCoverLetterBtn.addEventListener('click', async () => {
-        if (!latestJobId) return;
-        await onGenerateCoverLetter(latestJobId);
+        const currentJobId = stateMachine.currentJobId || latestJobId;
+        if (!currentJobId) return;
+        await onGenerateCoverLetter(currentJobId);
     });
-
     if (isFirefox()) {
         els.shortcutInstructions.innerHTML = els.shortcutInstructions.innerHTML.replace(
             '+B', '+Y'

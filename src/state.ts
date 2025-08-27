@@ -1,31 +1,42 @@
-import {hideAll, setHTML, toggle} from "./view";
+import {hideAll, toggle} from "./view";
 import {els} from "./dom";
 
 export enum ViewState {
-  Instructions = 'instructions',
-  Analysis = 'analysis',
-  CoverLetter = 'cover-letter',
-  ResumePreview = 'resume-preview',
+    Instructions = 'instructions',
+    Analysis = 'analysis',
+    CoverLetter = 'cover-letter',
+    ResumePreview = 'resume-preview',
+}
+
+export interface ViewStateWithJob {
+    state: ViewState;
+    jobId?: string;
 }
 
 export class StateMachine {
-  private current: ViewState = ViewState.Instructions;
-  private history: ViewState[] = [];
+    private current: ViewStateWithJob = {state: ViewState.Instructions};
+    private history: ViewStateWithJob[] = [];
 
-  get value() { return this.current; }
-  get stack() { return [...this.history]; }
+    get value() {
+        return this.current.state;
+    }
 
-  set(newState: ViewState, isBack = false) {
-    console.log('Current state (before state setting): ', this.current);
-    if (this.current === newState) return;
-    if (!isBack) this.history.push(this.current);
-    this.current = newState;
-    console.log('Current state (after state setting): ', this.current);
-  }
+    get currentJobId() {
+        return this.current.jobId;
+    }
 
-  back(): ViewState | undefined {
-    return this.history.pop();
-  }
+    set(newState: ViewState, isBack = false, jobId?: string) {
+        const newStateWithJob = {state: newState, jobId};
+        if (this.current.state === newState && this.current.jobId === jobId) return;
+        if (!isBack) this.history.push(this.current);
+        this.current = newStateWithJob;
+    }
+
+    back(): ViewStateWithJob | undefined {
+        const prev = this.history.pop();
+        if (prev) this.current = prev;
+        return prev;
+    }
 }
 
 export const stateMachine = new StateMachine();
