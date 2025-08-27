@@ -50,7 +50,7 @@ async function authenticate(): Promise<string | null> {
 }
 
 // Helper to get the auth token and user's API key
-async function getAuthHeadersAndBody(data: any) {
+async function getAuthHeadersAndBody(data: any, useModelOverride: boolean = false) {
     // Check if the JWT_TOKEN exists and is not expired
     if (!JWT_TOKEN || isTokenExpired(JWT_TOKEN)) {
         const token = await authenticate();
@@ -60,10 +60,10 @@ async function getAuthHeadersAndBody(data: any) {
         JWT_TOKEN = token;
     }
 
-    const {googleApiKey, modelName} = await getUserData();
+    const {googleApiKey, modelName, fallbackModelName} = await getUserData();
     const body = {
         ...data,
-        model_name: modelName || '',
+        model_name: useModelOverride ? fallbackModelName : modelName,
         gemini_api_key: googleApiKey || ''
     };
 
@@ -90,32 +90,75 @@ function isTokenExpired(token: string): boolean {
     }
 }
 
-export async function getResumeJson(resumeFileContent: string): Promise<{
-    search_query: string,
-    resume_data: any
-}> {
-    const {headers, body} = await getAuthHeadersAndBody({
-        resume_content: resumeFileContent
-    });
-
+// Generic function to make API calls with 429 fallback
+async function makeApiCallWithFallback(
+    endpoint: string,
+    requestData: any,
+    errorViewState: ViewState
+): Promise<any> {
+    // First try with user's preferred model
     try {
-        const response = await fetch(`${API_BASE_URL}/get-resume-json`, {
+        const {headers, body} = await getAuthHeadersAndBody(requestData);
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            method: 'POST',
+            headers,
+            body
+        });
+
+        if (response.status !== 429) {
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Failed to call ${endpoint}`);
+            }
+            return await response.json();
+        }
+
+        // If we get 429, fall through to try fallback model
+        console.log(`Got 429 with primary model, trying fallback model`);
+    } catch (error: any) {
+        if (!error.message?.includes('429')) {
+            throw error; // Re-throw non-429 errors
+        }
+    }
+
+    // Retry with fallback model
+    try {
+        const {headers, body} = await getAuthHeadersAndBody(requestData, true);
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
             method: 'POST',
             headers,
             body
         });
 
         if (response.status === 429) {
-            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.ResumePreview);
-            return;
+            showError(RATE_LIMIT_ERROR_MESSAGE, errorViewState);
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Rate limit exceeded on fallback model');
         }
 
-        const serverResponse = await response.json();
         if (!response.ok) {
-            throw new Error(serverResponse.error || 'Failed to get resume JSON from server.');
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Failed to call ${endpoint} with fallback model`);
         }
 
-        return serverResponse;
+        return await response.json();
+    } catch (error: any) {
+        if (error.message?.includes('Rate limit exceeded')) {
+            throw error;
+        }
+        console.error(`Error with fallback model on ${endpoint}:`, error);
+        throw error;
+    }
+}
+
+export async function getResumeJson(resumeFileContent: string): Promise<{
+    search_query: string,
+    resume_data: any
+}> {
+    try {
+        return await makeApiCallWithFallback('/get-resume-json', {
+            resume_content: resumeFileContent
+        }, ViewState.ResumePreview);
     } catch (error: any) {
         console.error('Error getting resume JSON from server:', error);
         throw error;
@@ -123,30 +166,13 @@ export async function getResumeJson(resumeFileContent: string): Promise<{
 }
 
 export async function generateSearchQuery(): Promise<string> {
-    const {resumeJsonData} = await getUserData();
-    const {headers, body} = await getAuthHeadersAndBody({
-        resume_json_data: JSON.stringify(resumeJsonData)
-    });
-
     try {
-        const response = await fetch(`${API_BASE_URL}/generate-search-query`, {
-            method: 'POST',
-            headers,
-            body
-        });
+        const {resumeJsonData} = await getUserData();
+        const result = await makeApiCallWithFallback('/generate-search-query', {
+            resume_json_data: JSON.stringify(resumeJsonData)
+        }, ViewState.Instructions);
 
-        if (response.status === 429) {
-            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.Instructions);
-            return;
-        }
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to generate search query from server.');
-        }
-
-        const data = await response.json();
-        return data.search_query;
+        return result.search_query;
     } catch (error) {
         console.error('Error generating search query:', error);
         if (els?.instructionContent) {
@@ -167,31 +193,14 @@ export async function analyzeJobPosting(jobPostingText: string, signal: AbortSig
     try {
         if (signal.aborted) return;
         const {resumeJsonData} = await getUserData();
-        const {headers, body} = await getAuthHeadersAndBody({
+
+        const data = await makeApiCallWithFallback('/analyze-job-posting', {
             job_posting_text: jobPostingText,
             resume_json_data: JSON.stringify(resumeJsonData)
-        });
-
-        const response = await fetch(`${API_BASE_URL}/analyze-job-posting`, {
-            method: 'POST',
-            headers,
-            body
-        });
+        }, ViewState.Analysis);
 
         if (signal.aborted) return;
 
-        if (response.status === 429) {
-            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.Analysis);
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Too many requests made to the server.');
-        }
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to analyze job posting from server.');
-        }
-
-        const data = await response.json();
         console.log('Job Analysis Response:', data);
         return {
             jobId: data.job_id,
@@ -214,31 +223,14 @@ export async function generateCoverLetter(jobId: string, signal: AbortSignal): P
     try {
         if (signal.aborted) return;
         const {resumeJsonData, jobPostingCache} = await getUserData();
-        const {headers, body} = await getAuthHeadersAndBody({
+
+        const data = await makeApiCallWithFallback('/generate-cover-letter', {
             job_posting_text: jobPostingCache[jobId].jobPostingText,
             resume_json_data: JSON.stringify(resumeJsonData)
-        });
-
-        const response = await fetch(`${API_BASE_URL}/generate-cover-letter`, {
-            method: 'POST',
-            headers,
-            body
-        });
+        }, ViewState.CoverLetter);
 
         if (signal.aborted) return;
 
-        if (response.status === 429) {
-            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.CoverLetter);
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Too many requests made to the server.');
-        }
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to generate cover letter from server.');
-        }
-
-        const data = await response.json();
         console.log('Cover Letter Response:', data);
         return {
             content: data.content
@@ -260,22 +252,62 @@ export async function tailorResume(
 ): Promise<{
     pdfBuffer: ArrayBuffer
 }> {
+    // For resume tailoring, we need special handling since it returns a binary PDF
     try {
         if (signal.aborted) return;
         const {resumeJsonData, theme, jobPostingCache} = await getUserData();
         const {jobPostingText} = jobPostingCache[jobId];
 
-        const {headers, body} = await getAuthHeadersAndBody({
+        // First try with user's preferred model
+        let response: Response;
+        try {
+            const {headers, body} = await getAuthHeadersAndBody({
+                resume_json_data: JSON.stringify(resumeJsonData),
+                job_posting_text: jobPostingText,
+                filename: filename,
+                theme: theme
+            });
+
+            response = await fetch(`${API_BASE_URL}/tailor-resume`, {
+                method: 'POST',
+                headers,
+                body
+            });
+
+            if (response.status === 429) {
+                console.log(`Got 429 with primary model, trying fallback model`);
+                // Fall through to try fallback model
+            } else {
+                if (signal.aborted) return;
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to tailor resume on server.');
+                }
+
+                console.log('Resume Tailoring Response:', response);
+                return {
+                    pdfBuffer: await response.arrayBuffer()
+                };
+            }
+        } catch (error: any) {
+            if (!error.message?.includes('429')) {
+                throw error;
+            }
+        }
+
+        // Retry with fallback model if we got 429
+        const {headers: fallbackHeaders, body: fallbackBody} = await getAuthHeadersAndBody({
             resume_json_data: JSON.stringify(resumeJsonData),
             job_posting_text: jobPostingText,
             filename: filename,
             theme: theme
-        });
+        }, true);
 
-        const response = await fetch(`${API_BASE_URL}/tailor-resume`, {
+        response = await fetch(`${API_BASE_URL}/tailor-resume`, {
             method: 'POST',
-            headers,
-            body
+            headers: fallbackHeaders,
+            body: fallbackBody
         });
 
         if (signal.aborted) return;
@@ -288,14 +320,14 @@ export async function tailorResume(
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to tailor resume on server.');
+            throw new Error(errorData.error || 'Failed to tailor resume on server with fallback model.');
         }
 
-        console.log('Resume Tailoring Response:', response);
-
+        console.log('Resume Tailoring Response (fallback):', response);
         return {
             pdfBuffer: await response.arrayBuffer()
         };
+
     } catch (error: any) {
         console.error('Error tailoring resume:', error);
         const errorMessage = `Resume Tailoring Failed`

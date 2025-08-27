@@ -14,6 +14,7 @@ export interface UserRelevantData {
     linkedinSearchQuery?: string;
     theme: string;
     modelName: string;
+    fallbackModelName: string;
     currentThemeIndex: number;
     jobPostingCache: Record<string, JobPostingCacheRecord>;
     resumesDownloaded: number;
@@ -23,7 +24,8 @@ export async function getUserData(): Promise<UserRelevantData> {
     const {userRelevantData} = await chrome.storage.local.get('userRelevantData');
     return userRelevantData ?? {
         googleApiKey: '',
-        modelName: 'gemini-2.0-flash',
+        modelName: 'gemini-2.5-flash',
+        fallbackModelName: 'gemini-2.0-flash',
         theme: 'engineeringclassic',
         currentThemeIndex: 3,
         resumesDownloaded: 0,

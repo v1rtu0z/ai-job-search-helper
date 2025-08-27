@@ -59,7 +59,9 @@ export function showSettingsExplainerPopup() {
     }
 }
 
-async function showAnalysis(html: string, isBack = false) {
+// fixme: removal and re-adding of event listeners is needed
+// fixme: going back from a cached view goes to instructions instead of the previous screen
+async function showAnalysis(html: string, isBack = false, jobId: string = null) {
     abortController = null;
     hideAll();
     setHTML(els.analysisContent, html);
@@ -215,7 +217,7 @@ async function onAnalyze(selectedText: string, isRetry = false) {
                 if (lowercaseJobText.includes(jobTitleFromCache) && lowercaseJobText.includes(companyNameFromCache)) {
                     const rec = jobPostingCache[jobId];
                     console.log(`[onAnalyze] CACHE HIT! Returning cached data for: "${jobId}"`);
-                    await showAnalysis(rec.Analysis);
+                    await showAnalysis(rec.Analysis, false, jobId);
                     return;
                 }
             }
@@ -362,18 +364,28 @@ async function onTailorResume(jobId: string, isRetry = false) {
     }
 }
 
-async function retryLastAction() {
-    if (!latestJobId) return;
+async function retryAction(jobId: string = null) {
+    let jobIdToRetry = null
+    if (jobId) {
+        jobIdToRetry = jobId;
+    } else {
+        if (latestJobId) {
+            jobIdToRetry = latestJobId;
+        } else {
+            return;
+        }
+    }
+
     switch (stateMachine.value) {
         case ViewState.Analysis:
             const {jobPostingCache} = await getUserData();
-            await onAnalyze(jobPostingCache[latestJobId].jobPostingText, true);
+            await onAnalyze(jobPostingCache[jobIdToRetry].jobPostingText, true);
             break;
         case ViewState.CoverLetter:
-            await onGenerateCoverLetter(latestJobId, true);
+            await onGenerateCoverLetter(jobIdToRetry, true);
             break;
         case ViewState.ResumePreview:
-            await onTailorResume(latestJobId, true);
+            await onTailorResume(jobIdToRetry, true);
             break;
     }
 }
@@ -433,7 +445,9 @@ function addGlobalEventListeners() {
     console.log("sidepanel.ts: Adding global event listeners.");
     els.backBtn.addEventListener('click', () => goBack());
 
-    els.retryBtn.addEventListener('click', retryLastAction);
+    els.retryBtn.addEventListener('click', () => {
+        retryAction()
+    })
 
     els.settingsBtn.addEventListener('click', showUserSettings);
 

@@ -46,6 +46,7 @@ export const els = {
     advancedSettingsToggle: document.getElementById('advanced-settings-toggle') as HTMLDivElement,
     advancedSettingsContent: document.getElementById('advanced-settings-content') as HTMLDivElement,
     advancedSettingsIcon: document.getElementById('advanced-settings-icon') as unknown as SVGElement,
+    fallbackModelNameInput: document.getElementById('fallback-model-name') as HTMLInputElement,
     modelNameInput: document.getElementById('model-name') as HTMLInputElement,
     resumeJsonDataTextarea: document.getElementById('resume-json-data') as HTMLTextAreaElement,
     googleAiConfigSection: document.getElementById('google-ai-config-section') as HTMLDivElement,

@@ -146,7 +146,8 @@ export async function showUserSettings() {
     els.userDetailsMessage.textContent = '';
 
     // Populate the new fields from user data
-    els.modelNameInput.value = userData.modelName || 'gemini-2.0-flash';
+    els.modelNameInput.value = userData.modelName || 'gemini-2.5-flash';
+    els.fallbackModelNameInput.value = userData.fallbackModelName || 'gemini-2.0-flash';
     els.resumeJsonDataTextarea.value = JSON.stringify(userData.resumeJsonData, null, 2) || '';
 
     // Advanced settings toggle functionality
@@ -224,6 +225,7 @@ export async function showUserSettings() {
 export async function saveUserSettings() {
     // Get values from the new fields
     const modelName = els.modelNameInput.value.trim();
+    const fallbackModelName = els.fallbackModelNameInput.value.trim();
     const resumeJsonDataInput = els.resumeJsonDataTextarea.value.trim();
 
     const apiKey = els.googleApiKeyInput.value.trim();
@@ -256,6 +258,11 @@ export async function saveUserSettings() {
         // Save the new model name
         if (oldModelName !== modelName) {
             userRelevantData.modelName = modelName;
+        }
+
+        // Save the new fallback model name
+        if (oldModelName !== fallbackModelName) {
+            userRelevantData.fallbackModelName = fallbackModelName;
         }
 
         userRelevantData.theme = els.currentThemeName.textContent;
