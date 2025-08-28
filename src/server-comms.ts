@@ -185,7 +185,12 @@ export async function generateSearchQuery(): Promise<string> {
     }
 }
 
-export async function analyzeJobPosting(jobPostingText: string, signal: AbortSignal): Promise<{
+export async function analyzeJobPosting(
+    jobPostingText: string,
+    signal: AbortSignal,
+    jobSpecificContext?: string,
+    previousAnalysis?: string
+): Promise<{
     jobId: string,
     companyName: string,
     jobAnalysis: string
@@ -194,10 +199,14 @@ export async function analyzeJobPosting(jobPostingText: string, signal: AbortSig
         if (signal.aborted) return;
         const {resumeJsonData} = await getUserData();
 
-        const data = await makeApiCallWithFallback('/analyze-job-posting', {
+        const requestData = {
             job_posting_text: jobPostingText,
-            resume_json_data: JSON.stringify(resumeJsonData)
-        }, ViewState.Analysis);
+            resume_json_data: JSON.stringify(resumeJsonData),
+            ...(previousAnalysis && {previous_analysis: previousAnalysis}),
+            ...(jobSpecificContext && {job_specific_context: jobSpecificContext}),
+        };
+
+        const data = await makeApiCallWithFallback('/analyze-job-posting', requestData, ViewState.Analysis);
 
         if (signal.aborted) return;
 
@@ -217,17 +226,27 @@ Please check your API key and network connection, then try again.`;
     }
 }
 
-export async function generateCoverLetter(jobId: string, signal: AbortSignal): Promise<{
+export async function generateCoverLetter(
+    jobId: string,
+    signal: AbortSignal,
+    currentContent?: string,
+    retryFeedback?: string
+): Promise<{
     content: string
 }> {
     try {
         if (signal.aborted) return;
         const {resumeJsonData, jobPostingCache} = await getUserData();
 
-        const data = await makeApiCallWithFallback('/generate-cover-letter', {
+        const requestData = {
             job_posting_text: jobPostingCache[jobId].jobPostingText,
-            resume_json_data: JSON.stringify(resumeJsonData)
-        }, ViewState.CoverLetter);
+            job_specific_context: jobPostingCache[jobId].jobSpecificContext,
+            resume_json_data: JSON.stringify(resumeJsonData),
+            ...(currentContent && {current_content: currentContent}),
+            ...(retryFeedback && {retry_feedback: retryFeedback})
+        };
+
+        const data = await makeApiCallWithFallback('/generate-cover-letter', requestData, ViewState.CoverLetter);
 
         if (signal.aborted) return;
 
@@ -248,90 +267,150 @@ Please check your API key and network connection, then try again.`;
 export async function tailorResume(
     jobId: string,
     filename: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    currentResumeData?: string,
+    retryFeedback?: string
 ): Promise<{
-    pdfBuffer: ArrayBuffer
+    pdfBuffer: ArrayBuffer,
+    jsonString: string
 }> {
-    // For resume tailoring, we need special handling since it returns a binary PDF
     try {
         if (signal.aborted) return;
         const {resumeJsonData, theme, jobPostingCache} = await getUserData();
         const {jobPostingText} = jobPostingCache[jobId];
 
-        // First try with user's preferred model
-        let response: Response;
-        try {
-            const {headers, body} = await getAuthHeadersAndBody({
-                resume_json_data: JSON.stringify(resumeJsonData),
+        let tailoredResumeJson: string;
+
+        // Check if we have cached JSON and this is a retry
+        const isRetry = !!(currentResumeData || retryFeedback);
+        const cachedJsonString = jobPostingCache[jobId]?.TailoredResume?.jsonString;
+
+        if (isRetry && cachedJsonString && !retryFeedback) {
+            // Use cached JSON if we have it and no new feedback
+            console.log('Using cached tailored resume JSON for retry');
+            tailoredResumeJson = cachedJsonString;
+        } else {
+            // Generate new tailored JSON
+            console.log('Generating new tailored resume JSON');
+            const jsonRequestData = {
                 job_posting_text: jobPostingText,
-                filename: filename,
-                theme: theme
-            });
+                job_specific_context: jobPostingCache[jobId].jobSpecificContext,
+                resume_json_data: JSON.stringify(resumeJsonData),
+                ...(currentResumeData && {current_resume_data: currentResumeData}),
+                ...(retryFeedback && {retry_feedback: retryFeedback})
+            };
 
-            response = await fetch(`${API_BASE_URL}/tailor-resume`, {
-                method: 'POST',
-                headers,
-                body
-            });
-
-            if (response.status === 429) {
-                console.log(`Got 429 with primary model, trying fallback model`);
-                // Fall through to try fallback model
-            } else {
-                if (signal.aborted) return;
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to tailor resume on server.');
-                }
-
-                console.log('Resume Tailoring Response:', response);
-                return {
-                    pdfBuffer: await response.arrayBuffer()
-                };
-            }
-        } catch (error: any) {
-            if (!error.message?.includes('429')) {
-                throw error;
-            }
+            tailoredResumeJson = await generateTailoredJson(jsonRequestData, signal);
+            if (signal.aborted) return;
         }
 
-        // Retry with fallback model if we got 429
-        const {headers: fallbackHeaders, body: fallbackBody} = await getAuthHeadersAndBody({
-            resume_json_data: JSON.stringify(resumeJsonData),
-            job_posting_text: jobPostingText,
-            filename: filename,
-            theme: theme
-        }, true);
+        // Now render the PDF using the tailored JSON
+        console.log('Rendering PDF from tailored JSON');
+        const pdfRequestData = {
+            tailored_resume_json: tailoredResumeJson,
+            theme: theme,
+            filename: filename
+        };
 
-        response = await fetch(`${API_BASE_URL}/tailor-resume`, {
-            method: 'POST',
-            headers: fallbackHeaders,
-            body: fallbackBody
-        });
-
+        const pdfBuffer = await renderResumePdf(pdfRequestData, signal);
         if (signal.aborted) return;
 
-        if (response.status === 429) {
-            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.ResumePreview);
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Too many requests made to the server.');
-        }
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to tailor resume on server with fallback model.');
-        }
-
-        console.log('Resume Tailoring Response (fallback):', response);
         return {
-            pdfBuffer: await response.arrayBuffer()
+            pdfBuffer,
+            jsonString: tailoredResumeJson
         };
 
     } catch (error: any) {
         console.error('Error tailoring resume:', error);
-        const errorMessage = `Resume Tailoring Failed`
+        const errorMessage = 'Resume Tailoring Failed';
         showError(errorMessage, ViewState.ResumePreview);
         throw error;
     }
+}
+
+async function generateTailoredJson(requestData: any, signal: AbortSignal): Promise<string> {
+    const makeRequest = async (useFallback = false) => {
+        const {headers, body} = await getAuthHeadersAndBody(requestData, useFallback);
+        return fetch(`${API_BASE_URL}/generate-tailored-json`, {
+            method: 'POST',
+            headers,
+            body,
+            signal
+        });
+    };
+
+    // Try with primary model first
+    let response: Response;
+    try {
+        response = await makeRequest(false);
+        if (response.status === 429) {
+            console.log('Got 429 with primary model, trying fallback model');
+            response = await makeRequest(true);
+        }
+    } catch (error: any) {
+        if (error.message?.includes('429')) {
+            response = await makeRequest(true);
+        } else {
+            throw error;
+        }
+    }
+
+    if (signal.aborted) throw new Error('Request aborted');
+
+    if (response.status === 429) {
+        showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.ResumePreview);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Too many requests made to the server.');
+    }
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate tailored resume JSON on server.');
+    }
+
+    const responseData = await response.json();
+    return responseData.tailored_resume_json || JSON.stringify(responseData);
+}
+
+async function renderResumePdf(requestData: any, signal: AbortSignal): Promise<ArrayBuffer> {
+    const makeRequest = async (useFallback = false) => {
+        const {headers, body} = await getAuthHeadersAndBody(requestData, useFallback);
+        return fetch(`${API_BASE_URL}/render-resume-pdf`, {
+            method: 'POST',
+            headers,
+            body,
+            signal
+        });
+    };
+
+    // Try with primary model first (though PDF rendering might not need fallback)
+    let response: Response;
+    try {
+        response = await makeRequest(false);
+        if (response.status === 429) {
+            console.log('Got 429 with primary model, trying fallback model');
+            response = await makeRequest(true);
+        }
+    } catch (error: any) {
+        if (error.message?.includes('429')) {
+            response = await makeRequest(true);
+        } else {
+            throw error;
+        }
+    }
+
+    if (signal.aborted) throw new Error('Request aborted');
+
+    if (response.status === 429) {
+        showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.ResumePreview);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Too many requests made to the server.');
+    }
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to render resume PDF on server.');
+    }
+
+    return await response.arrayBuffer();
 }

@@ -1,11 +1,12 @@
 import * as pdfjs from '../js/pdf.mjs';
 import {els} from './dom';
 import {toggle} from './view';
+import {removeAllListeners} from "./sidepanel";
 
 pdfjs.GlobalWorkerOptions.workerSrc = './pdf.worker.mjs';
 
 let currentPdf: pdfjs.PDFDocumentProxy | null = null;
-let currentScale = 0.9;
+let currentScale = 1.1;
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 3.0;
 const SCALE_STEP = 0.2;
@@ -46,7 +47,9 @@ function setupZoomButtons() {
     }
 
     // Add event listeners
+    els.zoomInBtn = removeAllListeners(els.zoomInBtn)
     els.zoomInBtn.addEventListener('click', () => zoomIn());
+    els.zoomOutBtn = removeAllListeners(els.zoomOutBtn)
     els.zoomOutBtn.addEventListener('click', () => zoomOut());
 
     // Update button states

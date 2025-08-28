@@ -4,7 +4,7 @@ import {getUserData, saveUserData, UserRelevantData} from "./storage";
 import {els} from "./dom";
 import * as serverComms from "./server-comms";
 import {hideAll, toggle} from "./view";
-import {getPdfText, goBack, showSettingsExplainerPopup} from "./sidepanel";
+import {getPdfText, goBack, removeAllListeners, showSettingsExplainerPopup} from "./sidepanel";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
 
@@ -80,6 +80,7 @@ function manageTheme(userRelevantData: UserRelevantData) {
  * @param userData The user data object to be updated.
  */
 async function parseAndUpdateResume(userData: UserRelevantData): Promise<void> {
+    console.log('parseAndUpdateResume called');
     // Check for a file and additional details before proceeding
     if (!userData.resumeFileContent) {
         els.userDetailsMessage.textContent = 'Please upload a resume file first.';
@@ -131,6 +132,7 @@ export async function showUserSettings() {
     toggle(els.userDetailsSection, true);
     toggle(els.backBtn, true);
     toggle(els.advancedSettingsToggle, true);
+    els.advancedSettingsIcon.style.transform = 'rotate(0deg)';
 
     // Fetch user data and manage theme settings
     const userData = await getUserData();
@@ -152,6 +154,7 @@ export async function showUserSettings() {
 
     // Advanced settings toggle functionality
     if (els.advancedSettingsToggle && els.advancedSettingsContent && els.advancedSettingsIcon) {
+        els.advancedSettingsToggle = removeAllListeners(els.advancedSettingsToggle)
         els.advancedSettingsToggle.addEventListener('click', () => {
             const isHidden = els.advancedSettingsContent.classList.contains('hidden');
             if (isHidden) {
@@ -167,9 +170,11 @@ export async function showUserSettings() {
     }
 
     // Add the save button event listener
+    els.saveAllSettingsBtn = removeAllListeners(els.saveAllSettingsBtn);
     els.saveAllSettingsBtn.addEventListener('click', saveUserSettings);
 
     // Resume file input change listener
+    els.resumeFileInput = removeAllListeners(els.resumeFileInput);
     els.resumeFileInput.addEventListener('change', async (event) => {
         const fileInput = event.target as HTMLInputElement;
         const file = fileInput.files && fileInput.files.length > 0 ? fileInput.files[0] : null;
@@ -211,6 +216,7 @@ export async function showUserSettings() {
     });
 
     // Add the event listener for the additional details textarea
+    els.additionalDetailsTextarea = removeAllListeners(els.additionalDetailsTextarea);
     els.additionalDetailsTextarea.addEventListener('input', () => {
         const resumeJsonData = userData.resumeJsonData || {};
         resumeJsonData.additionalDetails = els.additionalDetailsTextarea.value.trim();

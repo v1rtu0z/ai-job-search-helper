@@ -1,9 +1,12 @@
 export type JobPostingCacheRecord = {
+    resumeRetryFeedback: string | null;
+    coverLetterRetryFeedback: string | null;
+    jobSpecificContext: string | null;
     jobPostingText: string;
     CompanyName: string | null;
     Analysis: string | null;
     CoverLetter: { filename: string; content: string } | null;
-    TailoredResume: { filename: string; pdfArrayBufferInBase64: string } | null;
+    TailoredResume: { filename: string; jsonString: string; pdfArrayBufferInBase64: string } | null;
 };
 
 export interface UserRelevantData {
@@ -41,6 +44,9 @@ export async function updateJobCache(jobId: string, updater: (r: JobPostingCache
     const data = await getUserData();
     if (!data.jobPostingCache[jobId]) {
         data.jobPostingCache[jobId] = {
+            resumeRetryFeedback: null,
+            coverLetterRetryFeedback: null,
+            jobSpecificContext: null,
             jobPostingText: null,
             CompanyName: null,
             Analysis: null,

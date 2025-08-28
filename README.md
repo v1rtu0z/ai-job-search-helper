@@ -7,10 +7,10 @@ The AI Job Search Helper is a browser extension designed to help you analyze job
 * **Analyze Job Posting Fit:** Get a detailed analysis of how well your resume matches a job description in a dedicated side panel.
 * **Tailor Resume:** Instead of just suggesting changes, the assistant creates a completely new, tailored version of your resume based on the job posting and your original resume.
 * **Draft Cover Letter:** Automatically generate a draft of a cover letter based on your resume and the job description.
+* **Iterations on tailored docs:** Improve the quality of the tailored docs by iterating on them.
 
 ## **Upcoming Features**
 
-* **Iterations on tailored docs:** Improve the quality of the tailored docs by iterating on them.
 * **Text selection improvements:** A selector in the style of "inspect element" will be added to ease selecting the JD text.
 * **Resume Analysis:** Analyze the resume and suggest changes to improve it.
 * **Application Tracking:** Application calendar with reminders to reach out to the company with drafted messages.

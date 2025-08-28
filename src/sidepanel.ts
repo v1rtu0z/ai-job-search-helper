@@ -1,6 +1,6 @@
 import * as serverComms from "./server-comms";
 import {els} from './dom';
-import {hideAll, setHTML, showLoading, toggle} from './view';
+import {allSections, hideAll, setHTML, showLoading, toggle} from './view';
 import {showError, stateMachine, ViewState} from './state';
 import {getUserData, saveUserData, updateJobCache} from './storage';
 import {arrayBufferToBase64, base64ToArrayBuffer, renderPdfPreview} from './resumePreview';
@@ -47,13 +47,37 @@ export function showSettingsExplainerPopup() {
     if (els.settingsExplainerOverlay && els.closeExplainerBtn && els.settingsExplainerModal) {
         els.settingsExplainerOverlay.classList.remove('hidden');
 
+        els.closeExplainerBtn = removeAllListeners(els.closeExplainerBtn)
         els.closeExplainerBtn.addEventListener('click', () => {
             els.settingsExplainerOverlay.classList.add('hidden');
         }, {once: true});
 
+        els.settingsExplainerOverlay = removeAllListeners(els.settingsExplainerOverlay) as HTMLDivElement;
         els.settingsExplainerOverlay.addEventListener('click', (event) => {
             if (event.target === els.settingsExplainerOverlay) {
                 els.settingsExplainerOverlay.classList.add('hidden');
+            }
+        });
+    }
+}
+
+function showSupportPopup() {
+    if (els.sponsorshipPopupOverlay && els.closePopupBtn && els.sponsorshipPopupModal) {
+        // Show the popup by removing the 'hidden' class
+        els.sponsorshipPopupOverlay.classList.remove('hidden');
+
+        els.closePopupBtn = removeAllListeners(els.closePopupBtn)
+        // Add event listener to close button
+        els.closePopupBtn.addEventListener('click', () => {
+            els.sponsorshipPopupOverlay.classList.add('hidden');
+        }, {once: true}); // Use { once: true } to automatically remove the listener after it's been called once
+
+        els.sponsorshipPopupOverlay = removeAllListeners(els.sponsorshipPopupOverlay) as HTMLDivElement;
+        // Add event listener to close when clicking outside the modal
+        els.sponsorshipPopupOverlay.addEventListener('click', (event) => {
+            // Check if the click target is the overlay itself, not the modal
+            if (event.target === els.sponsorshipPopupOverlay) {
+                els.sponsorshipPopupOverlay.classList.add('hidden');
             }
         });
     }
@@ -65,14 +89,78 @@ async function showAnalysis(html: string, jobId: string, isBack = false) {
     setHTML(els.analysisContent, html);
     toggle(els.outputSection, true);
     toggle(els.analysisContent, true);
+    const {jobPostingCache} = await getUserData();
+    const jobSpecificContext = jobPostingCache[jobId]?.jobSpecificContext
+    if (jobSpecificContext) {
+        els.jobSpecificContext.value = jobSpecificContext;
+    }
+    toggle(els.jobSpecificContextSection, true);
     toggle(els.tailorResumeBtn, true);
     toggle(els.generateCoverLetterBtn, true);
     toggle(els.retryBtn, true);
     toggle(els.backBtn, true);
     toggle(els.settingsBtn, true);
+    toggle(els.outputWarning, true);
 
     stateMachine.set(ViewState.Analysis, isBack, jobId);
     latestJobId = jobId;
+}
+
+/**
+ * Removes all event listeners from an element by replacing it with a clone.
+ * @param element The HTMLElement to remove listeners from.
+ * @returns The new cloned element.
+ */
+export function removeAllListeners(element): any {
+    // Check if the element has a parent node.
+    if (!element || !element.parentNode) {
+        console.error('The provided element is null, undefined, or has no parent.');
+        return element;
+    }
+
+    // Create a deep clone, which does not copy event listeners.
+    const clonedElement = element.cloneNode(true) as HTMLElement;
+
+    // Replace the original element with the new clone in the DOM.
+    element.parentNode.replaceChild(clonedElement, element);
+
+    // Replace the element with the cloned one in the allSections list if it exists
+    const elementIndex = allSections.indexOf(element);
+    if (elementIndex !== -1) {
+        allSections[elementIndex] = clonedElement as (typeof element);
+    }
+
+    // Handle children - find and replace any child elements that are in allSections
+    const originalChildren = Array.from(element.querySelectorAll('*')) as HTMLElement[];
+    const clonedChildren = Array.from(clonedElement.querySelectorAll('*')) as HTMLElement[];
+
+    // For each original child, check if it's in allSections and replace it with the corresponding cloned child
+    originalChildren.forEach((originalChild: any, index) => {
+        const childIndex = allSections.indexOf(originalChild);
+        if (childIndex !== -1) {
+            // Replace the original child with the corresponding cloned child
+            allSections[childIndex] = clonedChildren[index] as (typeof originalChild);
+        }
+    });
+
+    // Update els object - replace any references to the original element with the cloned one
+    Object.keys(els).forEach(key => {
+        if (els[key] === element) {
+            els[key] = clonedElement;
+        }
+    });
+
+    // Update els object - replace any references to original children with cloned children
+    originalChildren.forEach((originalChild, index) => {
+        Object.keys(els).forEach(key => {
+            if (els[key] === originalChild) {
+                els[key] = clonedChildren[index];
+            }
+        });
+    });
+
+    // Return the new element for further use.
+    return clonedElement as (typeof element);
 }
 
 async function showCoverLetter(filename: string, content: string, jobId: string, isBack = false) {
@@ -82,16 +170,44 @@ async function showCoverLetter(filename: string, content: string, jobId: string,
     toggle(els.outputSection, true);
     els.coverLetterTextarea.value = content;
     toggle(els.coverLetterTextarea, true);
+    toggle(els.backBtn, true);
+
+    toggle(els.settingsBtn, true);
+
+    const {jobPostingCache} = await getUserData();
+    const currentJobCache = jobPostingCache[jobId];
+    els.coverLetterRetryFeedback.value = currentJobCache.coverLetterRetryFeedback;
+
+    if (els.coverLetterRetryFeedback.value) {
+        toggle(els.outputWarning, true);
+        toggle(els.coverLetterRetryFeedbackSection, true);
+        toggle(els.retryBtn, true);
+        toggle(els.thisNeedsWorkBtn, false);
+    } else {
+        toggle(els.thisNeedsWorkBtn, true);
+        els.thisNeedsWorkBtn = removeAllListeners(els.thisNeedsWorkBtn)
+        els.thisNeedsWorkBtn.addEventListener('click', async () => {
+            toggle(els.outputWarning, true);
+            toggle(els.coverLetterRetryFeedbackSection, true);
+            toggle(els.retryBtn, true);
+            toggle(els.thisNeedsWorkBtn, false);
+        })
+    }
+
+    els.coverLetterRetryFeedback = removeAllListeners(els.coverLetterRetryFeedback) as HTMLTextAreaElement;
+    els.coverLetterRetryFeedback.addEventListener('input', () => {
+        toggle(els.retryErrorMessage, false);
+        updateJobCache(jobId, r => {
+            r.coverLetterRetryFeedback = els.coverLetterRetryFeedback.value;
+        })
+    });
+
     toggle(els.downloadCoverLetterBtn, true);
     const textSpan = els.downloadCoverLetterBtn.querySelector('span');
     if (textSpan) {
         textSpan.textContent = `Download as ${filename}`;
     }
-
-    toggle(els.backBtn, true);
-    toggle(els.settingsBtn, true);
     toggle(els.tailorResumeBtn, true);
-    toggle(els.retryBtn, true);
 
     els.downloadCoverLetterBtn.onclick = () => {
         downloadBlob(new Blob([els.coverLetterTextarea.value], {type: 'text/plain'}), filename);
@@ -101,26 +217,6 @@ async function showCoverLetter(filename: string, content: string, jobId: string,
     latestJobId = jobId;
 }
 
-function showSupportPopup() {
-    if (els.sponsorshipPopupOverlay && els.closePopupBtn && els.sponsorshipPopupModal) {
-        // Show the popup by removing the 'hidden' class
-        els.sponsorshipPopupOverlay.classList.remove('hidden');
-
-        // Add event listener to close button
-        els.closePopupBtn.addEventListener('click', () => {
-            els.sponsorshipPopupOverlay.classList.add('hidden');
-        }, {once: true}); // Use { once: true } to automatically remove the listener after it's been called once
-
-        // Add event listener to close when clicking outside the modal
-        els.sponsorshipPopupOverlay.addEventListener('click', (event) => {
-            // Check if the click target is the overlay itself, not the modal
-            if (event.target === els.sponsorshipPopupOverlay) {
-                els.sponsorshipPopupOverlay.classList.add('hidden');
-            }
-        });
-    }
-}
-
 export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, jobId: string, isBack = false) {
     abortController = null;
     hideAll();
@@ -128,7 +224,26 @@ export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer
     toggle(els.backBtn, true);
     toggle(els.settingsBtn, true);
     toggle(els.generateCoverLetterBtn, true);
-    toggle(els.retryBtn, true);
+
+    toggle(els.thisNeedsWorkBtn, true);
+    els.thisNeedsWorkBtn = removeAllListeners(els.thisNeedsWorkBtn)
+    els.thisNeedsWorkBtn.addEventListener('click', async () => {
+        const {jobPostingCache} = await getUserData();
+        const currentJobCache = jobPostingCache[jobId];
+        els.resumeRetryFeedback.value = currentJobCache.resumeRetryFeedback;
+        toggle(els.resumeRetryFeedbackSection, true);
+        toggle(els.retryBtn, true);
+        toggle(els.outputWarning, true);
+        toggle(els.thisNeedsWorkBtn, false);
+    })
+
+    els.resumeRetryFeedback = removeAllListeners(els.resumeRetryFeedback) as HTMLTextAreaElement;
+    els.resumeRetryFeedback.addEventListener('input', () => {
+        toggle(els.retryErrorMessage, false);
+        updateJobCache(jobId, r => {
+            r.resumeRetryFeedback = els.resumeRetryFeedback.value;
+        })
+    });
 
     if (pdfBuffer && pdfBuffer.byteLength > 0) {
         toggle(els.downloadTailoredResumeBtn, true);
@@ -185,8 +300,8 @@ async function onSearchQueryRefresh(forceRegenerate: boolean): Promise<void> {
     showSectionWithQuery(searchQuery);
 }
 
-async function onAnalyze(selectedText: string, isRetry = false) {
-    console.log(`[onAnalyze] Function called. isRetry: ${isRetry}`);
+async function onAnalyze(selectedText: string, jobSpecificContext?: string, previousAnalysis?: string) {
+    console.log(`[onAnalyze] Function called. JobSpecificContext: ${!!jobSpecificContext}, PreviousAnalysis: ${!!previousAnalysis}`);
     console.log(`[onAnalyze] Input text (first 50 chars): "${selectedText.substring(0, 50)}..."`);
 
     abortInFlight();
@@ -201,20 +316,19 @@ async function onAnalyze(selectedText: string, isRetry = false) {
         const {jobPostingCache} = await getUserData();
         console.log('[onAnalyze] Fetched user data. Cache size:', Object.keys(jobPostingCache || {}).length);
 
-        // Caching Logic
+        // Skip caching if this is a retry with context/feedback
+        const isRetry = !!(jobSpecificContext || previousAnalysis);
         if (!isRetry && jobPostingText && jobPostingCache) {
             console.log('[onAnalyze] Starting cache lookup...');
             for (const jobId in jobPostingCache) {
                 const parts = jobId.split(' @ ');
-                if (parts.length < 2) continue; // Skip malformed cache keys
+                if (parts.length < 2) continue;
 
                 const jobTitleFromCache = parts[0].toLowerCase();
                 const companyNameFromCache = parts[1].toLowerCase();
                 const lowercaseJobText = jobPostingText.toLowerCase();
 
                 console.log(`[onAnalyze] Checking cache key: "${jobId}"`);
-                console.log(`[onAnalyze] Looking for "${jobTitleFromCache}" and "${companyNameFromCache}" in the selected text.`);
-
                 if (lowercaseJobText.includes(jobTitleFromCache) && lowercaseJobText.includes(companyNameFromCache)) {
                     const rec = jobPostingCache[jobId];
                     console.log(`[onAnalyze] CACHE HIT! Returning cached data for: "${jobId}"`);
@@ -232,15 +346,20 @@ async function onAnalyze(selectedText: string, isRetry = false) {
             stopOn: abortController.signal,
         });
         console.log('[onAnalyze] Calling server for new analysis...');
-        const {
-            jobId,
-            companyName,
-            jobAnalysis
-        } = await serverComms.analyzeJobPosting(selectedText, abortController.signal);
+
+        const response = await serverComms.analyzeJobPosting(
+            selectedText, abortController.signal, jobSpecificContext, previousAnalysis
+        );
+
+        if (!response) {
+            console.log('[onAnalyze] Request was aborted after server response');
+            return;
+        }
+
+        const {jobId, companyName, jobAnalysis} = response;
 
         latestJobId = jobId;
         console.log(`[onAnalyze] Server response received. New jobId: "${jobId}"`);
-        console.log('[onAnalyze] Updating cache...');
 
         await updateJobCache(jobId, r => {
             r.jobPostingText = jobPostingText;
@@ -261,8 +380,8 @@ async function onAnalyze(selectedText: string, isRetry = false) {
     }
 }
 
-async function onGenerateCoverLetter(jobId: string, isRetry = false) {
-    console.log(`[onGenerateCoverLetter] Function called. isRetry: ${isRetry}. JobId: "${jobId}"`);
+async function onGenerateCoverLetter(jobId: string, currentContent?: string, retryFeedback?: string) {
+    console.log(`[onGenerateCoverLetter] Function called. JobId: "${jobId}", CurrentContent: ${!!currentContent}, RetryFeedback: ${!!retryFeedback}`);
 
     abortInFlight();
     abortController = new AbortController();
@@ -276,6 +395,8 @@ async function onGenerateCoverLetter(jobId: string, isRetry = false) {
         const {jobPostingCache, resumeJsonData} = await getUserData();
         console.log(`[onGenerateCoverLetter] Fetched user data. Looking for jobId: "${jobId}" in cache.`);
 
+        // Skip caching if this is a retry with feedback
+        const isRetry = !!(currentContent || retryFeedback);
         if (!isRetry && jobPostingCache[jobId]?.CoverLetter) {
             console.log(`[onGenerateCoverLetter] CACHE HIT! Returning cached cover letter for: "${jobId}"`);
             const cachedLetter = jobPostingCache[jobId].CoverLetter;
@@ -283,14 +404,20 @@ async function onGenerateCoverLetter(jobId: string, isRetry = false) {
             return cachedLetter;
         }
 
-        console.log(`[onGenerateCoverLetter] CACHE MISS. Calling server for new cover letter for: "${jobId}"`);
-        const {content} = await serverComms.generateCoverLetter(jobId, abortController.signal);
+        console.log(`[onGenerateCoverLetter] Calling server for ${isRetry ? 'retry' : 'new'} cover letter for: "${jobId}"`);
+        const response = await serverComms.generateCoverLetter(jobId, abortController.signal, currentContent, retryFeedback);
+
+        if (!response) {
+            console.log('[onGenerateCoverLetter] Request was aborted after server response');
+            return;
+        }
+
+        const {content} = response;
 
         const companyName = jobPostingCache[jobId]?.CompanyName || 'UnknownCompany';
         const filename = `${resumeJsonData.personal.full_name}_cover_letter_${companyName}.txt`;
         console.log(`[onGenerateCoverLetter] Server response received. Filename: "${filename}"`);
 
-        console.log('[onGenerateCoverLetter] Awaiting cache update...');
         await updateJobCache(jobId, r => {
             r.CoverLetter = {filename, content};
         });
@@ -308,8 +435,8 @@ async function onGenerateCoverLetter(jobId: string, isRetry = false) {
     }
 }
 
-async function onTailorResume(jobId: string, isRetry = false) {
-    console.log(`[onTailorResume] Function called. isRetry: ${isRetry}. JobId: "${jobId}"`);
+async function onTailorResume(jobId: string, currentResumeData?: string, retryFeedback?: string) {
+    console.log(`[onTailorResume] Function called. JobId: "${jobId}", CurrentResumeData: ${!!currentResumeData}, RetryFeedback: ${!!retryFeedback}`);
 
     abortInFlight();
     abortController = new AbortController();
@@ -320,13 +447,11 @@ async function onTailorResume(jobId: string, isRetry = false) {
     });
 
     try {
-        const {
-            resumeJsonData,
-            jobPostingCache
-        } = await getUserData();
+        const {resumeJsonData, jobPostingCache} = await getUserData();
         console.log(`[onTailorResume] Fetched user data. Looking for jobId: "${jobId}" in cache.`);
 
-
+        // Skip caching if this is a retry with feedback
+        const isRetry = !!(currentResumeData || retryFeedback);
         if (!isRetry && jobPostingCache[jobId]?.TailoredResume) {
             console.log(`[onTailorResume] CACHE HIT! Returning cached tailored resume for: "${jobId}"`);
             const {filename, pdfArrayBufferInBase64} = jobPostingCache[jobId].TailoredResume;
@@ -335,7 +460,7 @@ async function onTailorResume(jobId: string, isRetry = false) {
             return {filename, pdfBuffer};
         }
 
-        console.log(`[onTailorResume] CACHE MISS. Calling server for new tailored resume for: "${jobId}"`);
+        console.log(`[onTailorResume] Calling server for ${isRetry ? 'retry' : 'new'} tailored resume for: "${jobId}"`);
         const companyName = jobPostingCache[jobId]?.CompanyName || 'UnknownCompany';
         const filename = `${
             resumeJsonData.personal.full_name.toLowerCase().replace(/\s+/g, '_')
@@ -343,13 +468,22 @@ async function onTailorResume(jobId: string, isRetry = false) {
             companyName.toLowerCase().replace(/\s+/g, '_')
         }.pdf`;
 
-        const {pdfBuffer} = await serverComms.tailorResume(jobId, filename, abortController.signal);
+        const response = await serverComms.tailorResume(jobId, filename, abortController.signal, currentResumeData, retryFeedback);
         console.log(`[onTailorResume] Server response received for filename: "${filename}"`);
 
-        console.log('[onTailorResume] Awaiting cache update...');
+        if (!response) {
+            console.log('[onTailorResume] Request was aborted after server response');
+            return;
+        }
+        const {pdfBuffer, jsonString} = response;
+
         await updateJobCache(jobId, r => {
             const pdfArrayBufferInBase64 = arrayBufferToBase64(pdfBuffer);
-            r.TailoredResume = {filename, pdfArrayBufferInBase64};
+            r.TailoredResume = {
+                filename,
+                pdfArrayBufferInBase64,
+                jsonString
+            };
         });
 
         console.log('[onTailorResume] Cache updated successfully. Showing resume preview.');
@@ -369,16 +503,44 @@ async function retryAction() {
     const currentJobId = stateMachine.currentJobId || latestJobId;
     if (!currentJobId) return;
 
+    const userRelevantData = await getUserData();
+    const currentJobCache = userRelevantData.jobPostingCache[currentJobId];
     switch (stateMachine.value) {
         case ViewState.Analysis:
-            const {jobPostingCache} = await getUserData();
-            await onAnalyze(jobPostingCache[currentJobId].jobPostingText, true);
+            const jobPostingText = currentJobCache.jobPostingText;
+            const jobSpecificContext = els.jobSpecificContext.value;
+            const previousAnalysis = currentJobCache.Analysis;
+            await onAnalyze(jobPostingText, jobSpecificContext, previousAnalysis);
+            await updateJobCache(currentJobId, r => {
+                r.jobSpecificContext = els.jobSpecificContext.value;
+            })
+            els.jobSpecificContext.value = '';
             break;
         case ViewState.CoverLetter:
-            await onGenerateCoverLetter(currentJobId, true);
+            const currentCoverLetterOutput = currentJobCache.CoverLetter?.content;
+            const coverLetterRetryFeedback = els.coverLetterRetryFeedback.value;
+            if (!coverLetterRetryFeedback) {
+                toggle(els.retryErrorMessage, true);
+                return;
+            }
+            await onGenerateCoverLetter(currentJobId, currentCoverLetterOutput, coverLetterRetryFeedback);
+            els.coverLetterRetryFeedback.value = '';
+            await updateJobCache(currentJobId, r => {
+                r.coverLetterRetryFeedback = null;
+            })
             break;
         case ViewState.ResumePreview:
-            await onTailorResume(currentJobId, true);
+            const currentResumeJsonString = currentJobCache.TailoredResume?.jsonString;
+            const resumeRetryFeedback = els.resumeRetryFeedback.value;
+            if (!resumeRetryFeedback) {
+                toggle(els.retryErrorMessage, true);
+                return;
+            }
+            await onTailorResume(currentJobId, currentResumeJsonString, resumeRetryFeedback);
+            els.resumeRetryFeedback.value = '';
+            await updateJobCache(currentJobId, r => {
+                r.resumeRetryFeedback = null;
+            })
             break;
     }
 }
@@ -440,24 +602,30 @@ async function showViewForState(state: ViewState, jobId: string | undefined, isB
 
 function addGlobalEventListeners() {
     console.log("sidepanel.ts: Adding global event listeners.");
+    els.backBtn = removeAllListeners(els.backBtn)
     els.backBtn.addEventListener('click', () => goBack());
 
+    els.refreshBtn = removeAllListeners(els.refreshBtn)
     els.retryBtn.addEventListener('click', () => {
         retryAction()
     })
 
+    els.downloadTailoredResumeBtn = removeAllListeners(els.downloadTailoredResumeBtn)
     els.settingsBtn.addEventListener('click', showUserSettings);
 
+    els.analyzeJobDescriptionBtn = removeAllListeners(els.analyzeJobDescriptionBtn)
     els.analyzeJobDescriptionBtn.addEventListener('click', async () => {
         await onAnalyze(els.jobDescriptionInput.value);
     })
 
+    els.tailorResumeBtn = removeAllListeners(els.tailorResumeBtn)
     els.tailorResumeBtn.addEventListener('click', async () => {
         const currentJobId = stateMachine.currentJobId || latestJobId;
         if (!currentJobId) return;
         await onTailorResume(currentJobId);
     });
 
+    els.generateCoverLetterBtn = removeAllListeners(els.generateCoverLetterBtn)
     els.generateCoverLetterBtn.addEventListener('click', async () => {
         const currentJobId = stateMachine.currentJobId || latestJobId;
         if (!currentJobId) return;
@@ -519,6 +687,7 @@ function showSectionWithQuery(query: string) {
     }
 }
 
+els.saveAllSettingsBtn = removeAllListeners(els.saveAllSettingsBtn)
 els.saveAllSettingsBtn.addEventListener('click', saveUserSettings);
 
 console.log("sidepanel.ts: Setting up runtime message listener.");

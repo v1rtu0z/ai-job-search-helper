@@ -13,7 +13,7 @@ function setupContextMenu(): void {
     chrome.contextMenus.removeAll(() => {
         chrome.contextMenus.create({
             id: 'analyze-job-posting',
-            title: 'Analyze Job Posting Fit',
+            title: 'Analyze Job Posting Fit 🔎',
             contexts: ['selection']
         });
     });

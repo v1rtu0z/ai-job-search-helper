@@ -58,4 +58,13 @@ export const els = {
     closeExplainerBtn: document.getElementById('close-explainer-btn') as HTMLButtonElement,
     settingsExplainerModal: document.getElementById('settings-explainer-modal') as HTMLDivElement,
     shortcutInstructions: document.getElementById('shortcut-instructions') as HTMLParagraphElement,
+    jobSpecificContextSection: document.getElementById('job-specific-context-section') as HTMLDivElement,
+    jobSpecificContext: document.getElementById('job-specific-context') as HTMLTextAreaElement,
+    resumeRetryFeedbackSection: document.getElementById('resume-retry-feedback-section') as HTMLDivElement,
+    resumeRetryFeedback: document.getElementById('resume-retry-feedback') as HTMLTextAreaElement,
+    coverLetterRetryFeedbackSection: document.getElementById('cover-letter-retry-feedback-section') as HTMLDivElement,
+    coverLetterRetryFeedback: document.getElementById('cover-letter-retry-feedback') as HTMLTextAreaElement,
+    retryErrorMessage: document.getElementById('retry-error-message') as HTMLParagraphElement,
+    thisNeedsWorkBtn: document.getElementById('this-needs-work-btn') as HTMLButtonElement,
+    outputWarning: document.getElementById('output-warning') as HTMLDivElement,
 };

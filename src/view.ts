@@ -1,11 +1,13 @@
 import {els} from './dom';
 
-const allSections = [
+export const allSections = [
     els.apiKeySection, els.userDetailsSection, els.instructionDisplay, els.outputSection,
     els.loadingSpinnerSection, els.settingsView, els.resumePreviewContainer, els.coverLetterWarning,
     els.googleAiConfigSection, els.advancedSettingsToggle, els.backBtn, els.tailorResumeBtn,
     els.generateCoverLetterBtn, els.downloadCoverLetterBtn, els.retryBtn, els.analysisContent,
-    els.coverLetterTextarea, els.coverLetterTextareaTitle, els.settingsBtn, els.downloadTailoredResumeBtn
+    els.coverLetterTextarea, els.coverLetterTextareaTitle, els.settingsBtn, els.downloadTailoredResumeBtn,
+    els.jobSpecificContextSection, els.resumeRetryFeedbackSection, els.coverLetterRetryFeedbackSection,
+    els.retryErrorMessage, els.thisNeedsWorkBtn, els.outputWarning, els.advancedSettingsContent
 ];
 
 export function hideAll() {
