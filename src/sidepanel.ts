@@ -63,29 +63,6 @@ function showSupportPopup() {
     }
 }
 
-async function showAnalysis(html: string, jobId: string, isBack = false) {
-    abortController = null;
-    hideAll();
-    setHTML(els.analysisContent, html);
-    toggle(els.outputSection, true);
-    toggle(els.analysisContent, true);
-    const {jobPostingCache} = await getUserData();
-    const jobSpecificContext = jobPostingCache[jobId]?.jobSpecificContext
-    if (jobSpecificContext) {
-        els.jobSpecificContext.value = jobSpecificContext;
-    }
-    toggle(els.jobSpecificContextSection, true);
-    toggle(els.tailorResumeBtn, true);
-    toggle(els.generateCoverLetterBtn, true);
-    toggle(els.retryBtn, true);
-    toggle(els.backBtn, true);
-    toggle(els.settingsBtn, true);
-    toggle(els.outputWarning, true);
-
-    stateMachine.set(ViewState.Analysis, isBack, jobId);
-    latestJobId = jobId;
-}
-
 /**
  * Removes all event listeners from an element by replacing it with a clone.
  * @param element The HTMLElement to remove listeners from.
@@ -143,6 +120,92 @@ export function removeAllListeners(element): any {
     return clonedElement as (typeof element);
 }
 
+function addGlobalEventListeners() {
+    console.log("sidepanel.ts: Adding global event listeners.");
+    els.backBtn = removeAllListeners(els.backBtn)
+    els.backBtn.addEventListener('click', () => goBack());
+
+    els.refreshBtn = removeAllListeners(els.refreshBtn)
+
+    els.downloadTailoredResumeBtn = removeAllListeners(els.downloadTailoredResumeBtn)
+    els.settingsBtn.addEventListener('click', showUserSettings);
+
+    els.analyzeJobDescriptionBtn = removeAllListeners(els.analyzeJobDescriptionBtn)
+    els.analyzeJobDescriptionBtn.addEventListener('click', async () => {
+        await onAnalyze(els.jobDescriptionInput.value);
+    })
+
+    els.tailorResumeBtn = removeAllListeners(els.tailorResumeBtn)
+    els.tailorResumeBtn.addEventListener('click', async () => {
+        const currentJobId = stateMachine.currentJobId || latestJobId;
+        if (!currentJobId) return;
+        await onTailorResume(currentJobId);
+    });
+
+    els.generateCoverLetterBtn = removeAllListeners(els.generateCoverLetterBtn)
+    els.generateCoverLetterBtn.addEventListener('click', async () => {
+        const currentJobId = stateMachine.currentJobId || latestJobId;
+        if (!currentJobId) return;
+        await onGenerateCoverLetter(currentJobId);
+    });
+
+    if (isFirefox()) {
+        els.shortcutInstructions.innerHTML = els.shortcutInstructions.innerHTML.replace(
+            '+B', '+Y'
+        ).replace(
+            '+B', '+Y'
+        ).replace(
+            'Chrome extension', 'Firefox add-On'
+        )
+    }
+}
+
+async function showAnalysis(html: string, jobId: string, isBack = false) {
+    abortController = null;
+    hideAll();
+    setHTML(els.analysisContent, html);
+    toggle(els.outputSection, true);
+    toggle(els.analysisContent, true);
+
+    const {jobPostingCache} = await getUserData();
+    const jobSpecificContext = jobPostingCache[jobId]?.jobSpecificContext
+    if (jobSpecificContext) {
+        els.jobSpecificContext.value = jobSpecificContext;
+    }
+
+    toggle(els.jobSpecificContextSection, true);
+    toggle(els.tailorResumeBtn, true);
+    toggle(els.generateCoverLetterBtn, true);
+    toggle(els.retryBtn, true);
+    toggle(els.backBtn, true);
+    toggle(els.settingsBtn, true);
+    toggle(els.outputWarning, true);
+
+    // Setup analysis-specific retry button listener
+    els.retryBtn = removeAllListeners(els.retryBtn);
+    els.retryBtn.addEventListener('click', async () => {
+        const userRelevantData = await getUserData();
+        const currentJobCache = userRelevantData.jobPostingCache[jobId];
+
+        const jobPostingText = currentJobCache.jobPostingText;
+        const jobSpecificContext = els.jobSpecificContext.value;
+        const previousAnalysis = currentJobCache.Analysis;
+
+        await onAnalyze(jobPostingText, jobSpecificContext, previousAnalysis);
+        els.jobSpecificContext.value = '';
+    });
+
+    els.jobSpecificContext = removeAllListeners(els.jobSpecificContext) as HTMLTextAreaElement;
+    els.jobSpecificContext.addEventListener('input', () => {
+        updateJobCache(jobId, r => {
+            r.coverLetterRetryFeedback = els.jobSpecificContext.value;
+        })
+    });
+
+    stateMachine.set(ViewState.Analysis, isBack, jobId);
+    latestJobId = jobId;
+}
+
 async function showCoverLetter(filename: string, content: string, jobId: string, isBack = false) {
     abortController = null;
     hideAll();
@@ -151,19 +214,22 @@ async function showCoverLetter(filename: string, content: string, jobId: string,
     els.coverLetterTextarea.value = content;
     toggle(els.coverLetterTextarea, true);
     toggle(els.backBtn, true);
-
     toggle(els.settingsBtn, true);
 
     const {jobPostingCache} = await getUserData();
     const currentJobCache = jobPostingCache[jobId];
-    els.coverLetterRetryFeedback.value = currentJobCache.coverLetterRetryFeedback;
+    const hasContent = content && content.trim().length > 0;
+
+    els.coverLetterRetryFeedback.value = currentJobCache?.coverLetterRetryFeedback || '';
 
     if (els.coverLetterRetryFeedback.value) {
+        // Already in feedback mode
         toggle(els.outputWarning, true);
         toggle(els.coverLetterRetryFeedbackSection, true);
         toggle(els.retryBtn, true);
         toggle(els.thisNeedsWorkBtn, false);
-    } else {
+    } else if (hasContent) {
+        // Has content, show "This needs work" button
         toggle(els.thisNeedsWorkBtn, true);
         els.thisNeedsWorkBtn = removeAllListeners(els.thisNeedsWorkBtn)
         els.thisNeedsWorkBtn.addEventListener('click', async () => {
@@ -172,7 +238,29 @@ async function showCoverLetter(filename: string, content: string, jobId: string,
             toggle(els.retryBtn, true);
             toggle(els.thisNeedsWorkBtn, false);
         })
+    } else {
+        // No content (error case), show retry directly
+        toggle(els.retryBtn, true);
     }
+
+    // Setup cover letter-specific retry button listener
+    els.retryBtn = removeAllListeners(els.retryBtn);
+    els.retryBtn.addEventListener('click', async () => {
+        const currentCoverLetterOutput = currentJobCache.CoverLetter?.content;
+        const coverLetterRetryFeedback = els.coverLetterRetryFeedback.value;
+
+        // Only require feedback if there's existing content
+        if (hasContent && !coverLetterRetryFeedback) {
+            toggle(els.retryErrorMessage, true);
+            return;
+        }
+
+        await onGenerateCoverLetter(jobId, currentCoverLetterOutput, coverLetterRetryFeedback);
+        els.coverLetterRetryFeedback.value = '';
+        await updateJobCache(jobId, r => {
+            r.coverLetterRetryFeedback = null;
+        })
+    });
 
     els.coverLetterRetryFeedback = removeAllListeners(els.coverLetterRetryFeedback) as HTMLTextAreaElement;
     els.coverLetterRetryFeedback.addEventListener('input', () => {
@@ -182,16 +270,19 @@ async function showCoverLetter(filename: string, content: string, jobId: string,
         })
     });
 
-    toggle(els.downloadCoverLetterBtn, true);
-    const textSpan = els.downloadCoverLetterBtn.querySelector('span');
-    if (textSpan) {
-        textSpan.textContent = `Download as ${filename}`;
-    }
-    toggle(els.tailorResumeBtn, true);
+    if (hasContent) {
+        toggle(els.downloadCoverLetterBtn, true);
+        const textSpan = els.downloadCoverLetterBtn.querySelector('span');
+        if (textSpan) {
+            textSpan.textContent = `Download as ${filename}`;
+        }
 
-    els.downloadCoverLetterBtn.onclick = () => {
-        downloadBlob(new Blob([els.coverLetterTextarea.value], {type: 'text/plain'}), filename);
-    };
+        els.downloadCoverLetterBtn.onclick = () => {
+            downloadBlob(new Blob([els.coverLetterTextarea.value], {type: 'text/plain'}), filename);
+        };
+    }
+
+    toggle(els.tailorResumeBtn, true);
 
     stateMachine.set(ViewState.CoverLetter, isBack, jobId);
     latestJobId = jobId;
@@ -205,17 +296,51 @@ export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer
     toggle(els.settingsBtn, true);
     toggle(els.generateCoverLetterBtn, true);
 
-    toggle(els.thisNeedsWorkBtn, true);
-    els.thisNeedsWorkBtn = removeAllListeners(els.thisNeedsWorkBtn)
-    els.thisNeedsWorkBtn.addEventListener('click', async () => {
-        const {jobPostingCache} = await getUserData();
-        const currentJobCache = jobPostingCache[jobId];
-        els.resumeRetryFeedback.value = currentJobCache.resumeRetryFeedback;
+    const {jobPostingCache} = await getUserData();
+    const currentJobCache = jobPostingCache[jobId];
+    const hasContent = pdfBuffer && pdfBuffer.byteLength > 0;
+
+    els.resumeRetryFeedback.value = currentJobCache?.resumeRetryFeedback || '';
+
+    if (els.resumeRetryFeedback.value) {
+        // Already in feedback mode
         toggle(els.resumeRetryFeedbackSection, true);
         toggle(els.retryBtn, true);
         toggle(els.outputWarning, true);
         toggle(els.thisNeedsWorkBtn, false);
-    })
+    } else if (hasContent) {
+        // Has content, show "This needs work" button
+        toggle(els.thisNeedsWorkBtn, true);
+        els.thisNeedsWorkBtn = removeAllListeners(els.thisNeedsWorkBtn)
+        els.thisNeedsWorkBtn.addEventListener('click', async () => {
+            toggle(els.resumeRetryFeedbackSection, true);
+            toggle(els.retryBtn, true);
+            toggle(els.outputWarning, true);
+            toggle(els.thisNeedsWorkBtn, false);
+        })
+    } else {
+        // No content (error case), show retry directly
+        toggle(els.retryBtn, true);
+    }
+
+    // Setup resume-specific retry button listener
+    els.retryBtn = removeAllListeners(els.retryBtn);
+    els.retryBtn.addEventListener('click', async () => {
+        const currentResumeJsonString = currentJobCache.TailoredResume?.jsonString;
+        const resumeRetryFeedback = els.resumeRetryFeedback.value;
+
+        // Only require feedback if there's existing content
+        if (hasContent && !resumeRetryFeedback) {
+            toggle(els.retryErrorMessage, true);
+            return;
+        }
+
+        await onTailorResume(jobId, currentResumeJsonString, resumeRetryFeedback);
+        els.resumeRetryFeedback.value = '';
+        await updateJobCache(jobId, r => {
+            r.resumeRetryFeedback = null;
+        })
+    });
 
     els.resumeRetryFeedback = removeAllListeners(els.resumeRetryFeedback) as HTMLTextAreaElement;
     els.resumeRetryFeedback.addEventListener('input', () => {
@@ -225,7 +350,7 @@ export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer
         })
     });
 
-    if (pdfBuffer && pdfBuffer.byteLength > 0) {
+    if (hasContent) {
         toggle(els.downloadTailoredResumeBtn, true);
         const textSpan = els.downloadTailoredResumeBtn.querySelector('span');
         if (textSpan) {
@@ -253,12 +378,12 @@ export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer
                 showSupportPopup();
             }
         };
+
+        await renderPdfPreview(pdfBuffer);
     } else {
         toggle(els.downloadTailoredResumeBtn, false);
         console.error("The PDF buffer is empty. Cannot download a file.");
     }
-
-    await renderPdfPreview(pdfBuffer);
 
     stateMachine.set(ViewState.ResumePreview, isBack, jobId);
     latestJobId = jobId;
@@ -479,52 +604,6 @@ async function onTailorResume(jobId: string, currentResumeData?: string, retryFe
     }
 }
 
-async function retryAction() {
-    const currentJobId = stateMachine.currentJobId || latestJobId;
-    if (!currentJobId) return;
-
-    const userRelevantData = await getUserData();
-    const currentJobCache = userRelevantData.jobPostingCache[currentJobId];
-    switch (stateMachine.value) {
-        case ViewState.Analysis:
-            const jobPostingText = currentJobCache.jobPostingText;
-            const jobSpecificContext = els.jobSpecificContext.value;
-            const previousAnalysis = currentJobCache.Analysis;
-            await onAnalyze(jobPostingText, jobSpecificContext, previousAnalysis);
-            await updateJobCache(currentJobId, r => {
-                r.jobSpecificContext = els.jobSpecificContext.value;
-            })
-            els.jobSpecificContext.value = '';
-            break;
-        case ViewState.CoverLetter:
-            const currentCoverLetterOutput = currentJobCache.CoverLetter?.content;
-            const coverLetterRetryFeedback = els.coverLetterRetryFeedback.value;
-            if (!coverLetterRetryFeedback) {
-                toggle(els.retryErrorMessage, true);
-                return;
-            }
-            await onGenerateCoverLetter(currentJobId, currentCoverLetterOutput, coverLetterRetryFeedback);
-            els.coverLetterRetryFeedback.value = '';
-            await updateJobCache(currentJobId, r => {
-                r.coverLetterRetryFeedback = null;
-            })
-            break;
-        case ViewState.ResumePreview:
-            const currentResumeJsonString = currentJobCache.TailoredResume?.jsonString;
-            const resumeRetryFeedback = els.resumeRetryFeedback.value;
-            if (!resumeRetryFeedback) {
-                toggle(els.retryErrorMessage, true);
-                return;
-            }
-            await onTailorResume(currentJobId, currentResumeJsonString, resumeRetryFeedback);
-            els.resumeRetryFeedback.value = '';
-            await updateJobCache(currentJobId, r => {
-                r.resumeRetryFeedback = null;
-            })
-            break;
-    }
-}
-
 export async function goBack() {
     abortInFlight();
 
@@ -578,48 +657,6 @@ async function showViewForState(state: ViewState, jobId: string | undefined, isB
             break;
     }
     await showInstructions(true);
-}
-
-function addGlobalEventListeners() {
-    console.log("sidepanel.ts: Adding global event listeners.");
-    els.backBtn = removeAllListeners(els.backBtn)
-    els.backBtn.addEventListener('click', () => goBack());
-
-    els.refreshBtn = removeAllListeners(els.refreshBtn)
-    els.retryBtn.addEventListener('click', () => {
-        retryAction()
-    })
-
-    els.downloadTailoredResumeBtn = removeAllListeners(els.downloadTailoredResumeBtn)
-    els.settingsBtn.addEventListener('click', showUserSettings);
-
-    els.analyzeJobDescriptionBtn = removeAllListeners(els.analyzeJobDescriptionBtn)
-    els.analyzeJobDescriptionBtn.addEventListener('click', async () => {
-        await onAnalyze(els.jobDescriptionInput.value);
-    })
-
-    els.tailorResumeBtn = removeAllListeners(els.tailorResumeBtn)
-    els.tailorResumeBtn.addEventListener('click', async () => {
-        const currentJobId = stateMachine.currentJobId || latestJobId;
-        if (!currentJobId) return;
-        await onTailorResume(currentJobId);
-    });
-
-    els.generateCoverLetterBtn = removeAllListeners(els.generateCoverLetterBtn)
-    els.generateCoverLetterBtn.addEventListener('click', async () => {
-        const currentJobId = stateMachine.currentJobId || latestJobId;
-        if (!currentJobId) return;
-        await onGenerateCoverLetter(currentJobId);
-    });
-    if (isFirefox()) {
-        els.shortcutInstructions.innerHTML = els.shortcutInstructions.innerHTML.replace(
-            '+B', '+Y'
-        ).replace(
-            '+B', '+Y'
-        ).replace(
-            'Chrome extension', 'Firefox add-On'
-        )
-    }
 }
 
 async function showInstructions(isBack: boolean = false) {
@@ -697,11 +734,9 @@ browser.runtime.onMessage.addListener((message, sender) => {
     }
 });
 
-
 // Execute the initial setup functions.
 addGlobalEventListeners();
 showInstructions();
-
 
 console.log("sidepanel.ts: Attempting to send 'side-panel-ready' message.");
 browser.runtime.sendMessage({type: 'side-panel-ready'}).catch(error => {
