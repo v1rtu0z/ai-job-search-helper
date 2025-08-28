@@ -4,7 +4,7 @@ import {getUserData, saveUserData, UserRelevantData} from "./storage";
 import {els} from "./dom";
 import * as serverComms from "./server-comms";
 import {hideAll, toggle} from "./view";
-import {getPdfText, goBack, removeAllListeners, showSettingsExplainerPopup} from "./sidepanel";
+import {getPdfText, goBack, removeAllListeners} from "./sidepanel";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
 
@@ -120,6 +120,22 @@ async function parseAndUpdateResume(userData: UserRelevantData): Promise<void> {
     }
 }
 
+export function showSettingsExplainerPopup() {
+    if (els.settingsExplainerOverlay && els.closeExplainerBtn && els.settingsExplainerModal) {
+        els.settingsExplainerOverlay.classList.remove('hidden');
+
+        els.closeExplainerBtn.addEventListener('click', () => {
+            console.log('closeExplainerBtn clicked');
+            els.settingsExplainerOverlay.classList.add('hidden');
+        }, {once: true});
+
+        els.settingsExplainerOverlay.addEventListener('click', (event) => {
+            if (event.target === els.settingsExplainerOverlay) {
+                els.settingsExplainerOverlay.classList.add('hidden');
+            }
+        });
+    }
+}
 
 export async function showUserSettings() {
     // Hide all other views

@@ -43,36 +43,16 @@ export async function getPdfText(file: File): Promise<string> {
     return fullText;
 }
 
-export function showSettingsExplainerPopup() {
-    if (els.settingsExplainerOverlay && els.closeExplainerBtn && els.settingsExplainerModal) {
-        els.settingsExplainerOverlay.classList.remove('hidden');
-
-        els.closeExplainerBtn = removeAllListeners(els.closeExplainerBtn)
-        els.closeExplainerBtn.addEventListener('click', () => {
-            els.settingsExplainerOverlay.classList.add('hidden');
-        }, {once: true});
-
-        els.settingsExplainerOverlay = removeAllListeners(els.settingsExplainerOverlay) as HTMLDivElement;
-        els.settingsExplainerOverlay.addEventListener('click', (event) => {
-            if (event.target === els.settingsExplainerOverlay) {
-                els.settingsExplainerOverlay.classList.add('hidden');
-            }
-        });
-    }
-}
-
 function showSupportPopup() {
     if (els.sponsorshipPopupOverlay && els.closePopupBtn && els.sponsorshipPopupModal) {
         // Show the popup by removing the 'hidden' class
         els.sponsorshipPopupOverlay.classList.remove('hidden');
 
-        els.closePopupBtn = removeAllListeners(els.closePopupBtn)
         // Add event listener to close button
         els.closePopupBtn.addEventListener('click', () => {
             els.sponsorshipPopupOverlay.classList.add('hidden');
         }, {once: true}); // Use { once: true } to automatically remove the listener after it's been called once
 
-        els.sponsorshipPopupOverlay = removeAllListeners(els.sponsorshipPopupOverlay) as HTMLDivElement;
         // Add event listener to close when clicking outside the modal
         els.sponsorshipPopupOverlay.addEventListener('click', (event) => {
             // Check if the click target is the overlay itself, not the modal
