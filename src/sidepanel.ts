@@ -260,6 +260,10 @@ async function showCoverLetter(filename: string, content: string, jobId: string,
         await updateJobCache(jobId, r => {
             r.coverLetterRetryFeedback = null;
         })
+        toggle(els.coverLetterRetryFeedbackSection, false);
+        toggle(els.outputWarning, false);
+        toggle(els.retryBtn, false);
+        toggle(els.thisNeedsWorkBtn, true);
     });
 
     els.coverLetterRetryFeedback = removeAllListeners(els.coverLetterRetryFeedback) as HTMLTextAreaElement;
@@ -288,7 +292,7 @@ async function showCoverLetter(filename: string, content: string, jobId: string,
     latestJobId = jobId;
 }
 
-export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, jobId: string, isBack = false) {
+async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, jobId: string, isBack = false) {
     abortController = null;
     hideAll();
     toggle(els.outputSection, true);
@@ -340,6 +344,10 @@ export async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer
         await updateJobCache(jobId, r => {
             r.resumeRetryFeedback = null;
         })
+        toggle(els.resumeRetryFeedbackSection, false);
+        toggle(els.outputWarning, false);
+        toggle(els.retryBtn, false);
+        toggle(els.thisNeedsWorkBtn, true);
     });
 
     els.resumeRetryFeedback = removeAllListeners(els.resumeRetryFeedback) as HTMLTextAreaElement;

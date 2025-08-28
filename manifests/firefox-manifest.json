@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "AI job search helper",
   "description": "Analyzes job postings for fit, tailors resumes, and drafts cover letters using AI, based on your resume and preferences.",
-  "version": "1.1",
+  "version": "1.2",
   "action": {
     "default_icon": {
       "16": "images/icon_zoomed_16x16.png",
