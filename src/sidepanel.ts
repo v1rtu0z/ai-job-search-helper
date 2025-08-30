@@ -1,7 +1,7 @@
 import * as serverComms from "./server-comms";
 import {els} from './dom';
 import {allSections, hideAll, setHTML, showLoading, toggle} from './view';
-import {showError, stateMachine, ViewState} from './state';
+import {stateMachine, ViewState} from './state';
 import {getUserData, saveUserData, updateJobCache} from './storage';
 import {arrayBufferToBase64, base64ToArrayBuffer, renderPdfPreview} from './resumePreview';
 import {downloadBlob} from './downloads';
@@ -12,6 +12,7 @@ import '../backdrop_overlay_style.css';
 import {browser} from "webextension-polyfill-ts";
 
 import * as pdfjs from "../js/pdf.mjs";
+import {DebugLogger} from "./logging";
 
 // Set PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
@@ -27,6 +28,360 @@ function abortInFlight() {
 
 let latestJobId: string;
 
+// Unified retry context that handles all retry scenarios
+interface RetryContext {
+    operation: 'analyze' | 'cover-letter' | 'resume';
+    jobId?: string;
+    originalParams?: any;
+    // For success screen retries with feedback
+    currentContent?: string;
+    feedbackElementId?: string; // ID of the textarea for feedback
+    requiresFeedback?: boolean; // Whether feedback is required for retry
+}
+
+let currentRetryContext: RetryContext | null = null;
+
+const sidepanelLogger = new DebugLogger('sidepanel');
+
+// Unified retry setup that works for both error and success screens
+function setupRetryForCurrentView() {
+    if (!currentRetryContext) return;
+
+    els.retryBtn = removeAllListeners(els.retryBtn);
+    els.retryBtn.addEventListener('click', async () => {
+        if (!currentRetryContext) return;
+
+        try {
+            // For retries that require feedback, check if feedback is provided
+            if (currentRetryContext.requiresFeedback && currentRetryContext.feedbackElementId) {
+                const feedbackElement = els[currentRetryContext.feedbackElementId] as HTMLTextAreaElement;
+                const feedback = feedbackElement?.value?.trim();
+
+                if (!feedback) {
+                    toggle(els.retryErrorMessage, true);
+                    return;
+                }
+
+                // Add feedback to retry parameters
+                currentRetryContext.originalParams = {
+                    ...currentRetryContext.originalParams,
+                    retryFeedback: feedback
+                };
+            }
+
+            // Execute the retry
+            await executeRetry(currentRetryContext);
+
+            // Clear feedback and reset UI state after successful retry
+            if (currentRetryContext.feedbackElementId) {
+                const feedbackElement = els[currentRetryContext.feedbackElementId] as HTMLTextAreaElement;
+                if (feedbackElement) feedbackElement.value = '';
+
+                // Update cache to clear stored feedback
+                if (currentRetryContext.jobId) {
+                    await updateJobCache(currentRetryContext.jobId, r => {
+                        if (currentRetryContext.operation === 'cover-letter') {
+                            r.coverLetterRetryFeedback = null;
+                        } else if (currentRetryContext.operation === 'resume') {
+                            r.resumeRetryFeedback = null;
+                        }
+                    });
+                }
+
+                // Hide feedback UI elements
+                hideRetryFeedbackUI();
+            }
+        } catch (error) {
+            console.error('Retry failed:', error);
+            showError(error?.message ?? 'Retry failed. Please try again later.', stateMachine.value);
+        }
+    });
+}
+
+// Execute the actual retry operation
+async function executeRetry(retryContext: RetryContext) {
+    switch (retryContext.operation) {
+        case 'analyze':
+            const {selectedText, jobSpecificContext, previousAnalysis, retryFeedback} = retryContext.originalParams;
+            // For analysis, retryFeedback becomes the new jobSpecificContext
+            await onAnalyze(selectedText, retryFeedback || jobSpecificContext, previousAnalysis);
+            break;
+
+        case 'cover-letter':
+            const {currentContent: clContent, retryFeedback: clFeedback} = retryContext.originalParams;
+            await onGenerateCoverLetter(retryContext.jobId, clContent, clFeedback);
+            break;
+
+        case 'resume':
+            const {currentResumeData, retryFeedback: resumeFeedback} = retryContext.originalParams;
+            await onTailorResume(retryContext.jobId, currentResumeData, resumeFeedback);
+            break;
+    }
+}
+
+// Hide retry feedback UI elements
+function hideRetryFeedbackUI() {
+    toggle(els.retryErrorMessage, false);
+    toggle(els.coverLetterRetryFeedbackSection, false);
+    toggle(els.resumeRetryFeedbackSection, false);
+    toggle(els.outputWarning, false);
+    toggle(els.retryBtn, false);
+    toggle(els.thisNeedsWorkBtn, true);
+}
+
+// Updated showError function - now uses the unified retry system
+export function showError(errorMessage: string, state: ViewState, retryContext?: RetryContext, isBack = false) {
+    hideAll();
+    els.analysisContent.textContent = errorMessage;
+    toggle(els.outputSection, true);
+    toggle(els.analysisContent, true);
+    toggle(els.backBtn, true);
+    toggle(els.settingsBtn, true);
+
+    if (retryContext) {
+        currentRetryContext = retryContext;
+        setupRetryForCurrentView();
+        toggle(els.retryBtn, true);
+    } else {
+        currentRetryContext = null;
+        toggle(els.retryBtn, false);
+    }
+
+    stateMachine.set(state, isBack);
+}
+
+// Updated showAnalysis - now uses unified retry system
+async function showAnalysis(html: string, jobId: string, isBack = false) {
+    abortController = null;
+    hideAll();
+    setHTML(els.analysisContent, html);
+    toggle(els.outputSection, true);
+    toggle(els.analysisContent, true);
+
+    const {jobPostingCache} = await getUserData();
+    const jobSpecificContext = jobPostingCache[jobId]?.jobSpecificContext
+    if (jobSpecificContext) {
+        els.jobSpecificContext.value = jobSpecificContext;
+    }
+
+    toggle(els.jobSpecificContextSection, true);
+    toggle(els.tailorResumeBtn, true);
+    toggle(els.generateCoverLetterBtn, true);
+    toggle(els.retryBtn, true);
+    toggle(els.backBtn, true);
+    toggle(els.settingsBtn, true);
+    toggle(els.outputWarning, true);
+
+    // Set up unified retry context for analysis
+    currentRetryContext = {
+        operation: 'analyze',
+        jobId,
+        originalParams: {
+            selectedText: jobPostingCache[jobId].jobPostingText,
+            previousAnalysis: jobPostingCache[jobId].Analysis
+        },
+        feedbackElementId: 'jobSpecificContext',
+        requiresFeedback: false // Analysis doesn't require feedback, but can use it
+    };
+
+    setupRetryForCurrentView();
+
+    // Handle job specific context input
+    els.jobSpecificContext = removeAllListeners(els.jobSpecificContext) as HTMLTextAreaElement;
+    els.jobSpecificContext.addEventListener('input', () => {
+        updateJobCache(jobId, r => {
+            r.jobSpecificContext = els.jobSpecificContext.value;
+        });
+
+        // Update retry context with current input
+        if (currentRetryContext) {
+            currentRetryContext.originalParams = {
+                ...currentRetryContext.originalParams,
+                jobSpecificContext: els.jobSpecificContext.value
+            };
+        }
+    });
+
+    stateMachine.set(ViewState.Analysis, isBack, jobId);
+    latestJobId = jobId;
+}
+
+// Updated showCoverLetter - now uses unified retry system
+async function showCoverLetter(filename: string, content: string, jobId: string, isBack = false) {
+    abortController = null;
+    hideAll();
+    toggle(els.coverLetterWarning, true);
+    toggle(els.outputSection, true);
+    els.coverLetterTextarea.value = content;
+    toggle(els.coverLetterTextarea, true);
+    toggle(els.backBtn, true);
+    toggle(els.settingsBtn, true);
+
+    const {jobPostingCache} = await getUserData();
+    const currentJobCache = jobPostingCache[jobId];
+    const hasContent = content && content.trim().length > 0;
+
+    els.coverLetterRetryFeedback.value = currentJobCache?.coverLetterRetryFeedback || '';
+
+    // Set up unified retry context
+    currentRetryContext = {
+        operation: 'cover-letter',
+        jobId,
+        originalParams: {
+            currentContent: content
+        },
+        feedbackElementId: 'coverLetterRetryFeedback',
+        requiresFeedback: hasContent // Only require feedback if there's existing content
+    };
+
+    if (els.coverLetterRetryFeedback.value) {
+        // Already in feedback mode
+        toggle(els.outputWarning, true);
+        toggle(els.coverLetterRetryFeedbackSection, true);
+        toggle(els.retryBtn, true);
+        toggle(els.thisNeedsWorkBtn, false);
+        setupRetryForCurrentView();
+    } else if (hasContent) {
+        // Has content, show "This needs work" button
+        toggle(els.thisNeedsWorkBtn, true);
+        els.thisNeedsWorkBtn = removeAllListeners(els.thisNeedsWorkBtn)
+        els.thisNeedsWorkBtn.addEventListener('click', async () => {
+            toggle(els.outputWarning, true);
+            toggle(els.coverLetterRetryFeedbackSection, true);
+            toggle(els.retryBtn, true);
+            toggle(els.thisNeedsWorkBtn, false);
+            setupRetryForCurrentView();
+        })
+    } else {
+        // No content (error case), show retry directly
+        toggle(els.retryBtn, true);
+        currentRetryContext.requiresFeedback = false;
+        setupRetryForCurrentView();
+    }
+
+    // Handle feedback input
+    els.coverLetterRetryFeedback = removeAllListeners(els.coverLetterRetryFeedback) as HTMLTextAreaElement;
+    els.coverLetterRetryFeedback.addEventListener('input', () => {
+        toggle(els.retryErrorMessage, false);
+        updateJobCache(jobId, r => {
+            r.coverLetterRetryFeedback = els.coverLetterRetryFeedback.value;
+        });
+    });
+
+    if (hasContent) {
+        toggle(els.downloadCoverLetterBtn, true);
+        const textSpan = els.downloadCoverLetterBtn.querySelector('span');
+        if (textSpan) {
+            textSpan.textContent = `Download as ${filename}`;
+        }
+        els.downloadCoverLetterBtn.onclick = () => {
+            downloadBlob(new Blob([els.coverLetterTextarea.value], {type: 'text/plain'}), filename);
+        };
+    }
+
+    toggle(els.tailorResumeBtn, true);
+    stateMachine.set(ViewState.CoverLetter, isBack, jobId);
+    latestJobId = jobId;
+}
+
+// Updated showResumePreview - now uses unified retry system
+async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, jobId: string, isBack = false) {
+    abortController = null;
+    hideAll();
+    toggle(els.outputSection, true);
+    toggle(els.backBtn, true);
+    toggle(els.settingsBtn, true);
+    toggle(els.generateCoverLetterBtn, true);
+
+    const {jobPostingCache} = await getUserData();
+    const currentJobCache = jobPostingCache[jobId];
+    const hasContent = pdfBuffer && pdfBuffer.byteLength > 0;
+
+    els.resumeRetryFeedback.value = currentJobCache?.resumeRetryFeedback || '';
+
+    // Set up unified retry context
+    currentRetryContext = {
+        operation: 'resume',
+        jobId,
+        originalParams: {
+            currentResumeData: currentJobCache.TailoredResume?.jsonString
+        },
+        feedbackElementId: 'resumeRetryFeedback',
+        requiresFeedback: hasContent // Only require feedback if there's existing content
+    };
+
+    if (els.resumeRetryFeedback.value) {
+        // Already in feedback mode
+        toggle(els.resumeRetryFeedbackSection, true);
+        toggle(els.retryBtn, true);
+        toggle(els.outputWarning, true);
+        toggle(els.thisNeedsWorkBtn, false);
+        setupRetryForCurrentView();
+    } else if (hasContent) {
+        // Has content, show "This needs work" button
+        toggle(els.thisNeedsWorkBtn, true);
+        els.thisNeedsWorkBtn = removeAllListeners(els.thisNeedsWorkBtn)
+        els.thisNeedsWorkBtn.addEventListener('click', async () => {
+            toggle(els.resumeRetryFeedbackSection, true);
+            toggle(els.retryBtn, true);
+            toggle(els.outputWarning, true);
+            toggle(els.thisNeedsWorkBtn, false);
+            setupRetryForCurrentView();
+        })
+    } else {
+        // No content (error case), show retry directly
+        toggle(els.retryBtn, true);
+        currentRetryContext.requiresFeedback = false;
+        setupRetryForCurrentView();
+    }
+
+    // Handle feedback input
+    els.resumeRetryFeedback = removeAllListeners(els.resumeRetryFeedback) as HTMLTextAreaElement;
+    els.resumeRetryFeedback.addEventListener('input', () => {
+        toggle(els.retryErrorMessage, false);
+        updateJobCache(jobId, r => {
+            r.resumeRetryFeedback = els.resumeRetryFeedback.value;
+        });
+    });
+
+    if (hasContent) {
+        toggle(els.downloadTailoredResumeBtn, true);
+        const textSpan = els.downloadTailoredResumeBtn.querySelector('span');
+        if (textSpan) {
+            textSpan.textContent = `Download as ${filename}`;
+        }
+
+        const blob = new Blob([pdfBuffer], {type: 'application/pdf'});
+        els.downloadTailoredResumeBtn.onclick = async () => {
+            const a = document.createElement('a');
+            const url = window.URL.createObjectURL(blob);
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            let userData = await getUserData();
+            userData.resumesDownloaded++;
+            await saveUserData(userData);
+
+            if (userData.resumesDownloaded % 20 === 0) {
+                showSupportPopup();
+            }
+        };
+
+        await renderPdfPreview(pdfBuffer);
+    } else {
+        toggle(els.downloadTailoredResumeBtn, false);
+        console.error("The PDF buffer is empty. Cannot download a file.");
+    }
+
+    stateMachine.set(ViewState.ResumePreview, isBack, jobId);
+    latestJobId = jobId;
+}
+
+// fixme: this doesn't seem to work great with some pdf
 export async function getPdfText(file: File): Promise<string> {
     const arrayBuffer = await new Response(file).arrayBuffer();
     const pdf = await pdfjs.getDocument({data: arrayBuffer}).promise;
@@ -121,7 +476,7 @@ export function removeAllListeners(element): any {
 }
 
 function addGlobalEventListeners() {
-    console.log("sidepanel.ts: Adding global event listeners.");
+    sidepanelLogger.log("sidepanel.ts: Adding global event listeners.");
     els.backBtn = removeAllListeners(els.backBtn)
     els.backBtn.addEventListener('click', () => goBack());
 
@@ -160,243 +515,6 @@ function addGlobalEventListeners() {
     }
 }
 
-async function showAnalysis(html: string, jobId: string, isBack = false) {
-    abortController = null;
-    hideAll();
-    setHTML(els.analysisContent, html);
-    toggle(els.outputSection, true);
-    toggle(els.analysisContent, true);
-
-    const {jobPostingCache} = await getUserData();
-    const jobSpecificContext = jobPostingCache[jobId]?.jobSpecificContext
-    if (jobSpecificContext) {
-        els.jobSpecificContext.value = jobSpecificContext;
-    }
-
-    toggle(els.jobSpecificContextSection, true);
-    toggle(els.tailorResumeBtn, true);
-    toggle(els.generateCoverLetterBtn, true);
-    toggle(els.retryBtn, true);
-    toggle(els.backBtn, true);
-    toggle(els.settingsBtn, true);
-    toggle(els.outputWarning, true);
-
-    // Setup analysis-specific retry button listener
-    els.retryBtn = removeAllListeners(els.retryBtn);
-    els.retryBtn.addEventListener('click', async () => {
-        const userRelevantData = await getUserData();
-        const currentJobCache = userRelevantData.jobPostingCache[jobId];
-
-        const jobPostingText = currentJobCache.jobPostingText;
-        const jobSpecificContext = els.jobSpecificContext.value;
-        const previousAnalysis = currentJobCache.Analysis;
-
-        await onAnalyze(jobPostingText, jobSpecificContext, previousAnalysis);
-        els.jobSpecificContext.value = '';
-    });
-
-    els.jobSpecificContext = removeAllListeners(els.jobSpecificContext) as HTMLTextAreaElement;
-    els.jobSpecificContext.addEventListener('input', () => {
-        updateJobCache(jobId, r => {
-            r.coverLetterRetryFeedback = els.jobSpecificContext.value;
-        })
-    });
-
-    stateMachine.set(ViewState.Analysis, isBack, jobId);
-    latestJobId = jobId;
-}
-
-async function showCoverLetter(filename: string, content: string, jobId: string, isBack = false) {
-    abortController = null;
-    hideAll();
-    toggle(els.coverLetterWarning, true);
-    toggle(els.outputSection, true);
-    els.coverLetterTextarea.value = content;
-    toggle(els.coverLetterTextarea, true);
-    toggle(els.backBtn, true);
-    toggle(els.settingsBtn, true);
-
-    const {jobPostingCache} = await getUserData();
-    const currentJobCache = jobPostingCache[jobId];
-    const hasContent = content && content.trim().length > 0;
-
-    els.coverLetterRetryFeedback.value = currentJobCache?.coverLetterRetryFeedback || '';
-
-    if (els.coverLetterRetryFeedback.value) {
-        // Already in feedback mode
-        toggle(els.outputWarning, true);
-        toggle(els.coverLetterRetryFeedbackSection, true);
-        toggle(els.retryBtn, true);
-        toggle(els.thisNeedsWorkBtn, false);
-    } else if (hasContent) {
-        // Has content, show "This needs work" button
-        toggle(els.thisNeedsWorkBtn, true);
-        els.thisNeedsWorkBtn = removeAllListeners(els.thisNeedsWorkBtn)
-        els.thisNeedsWorkBtn.addEventListener('click', async () => {
-            toggle(els.outputWarning, true);
-            toggle(els.coverLetterRetryFeedbackSection, true);
-            toggle(els.retryBtn, true);
-            toggle(els.thisNeedsWorkBtn, false);
-        })
-    } else {
-        // No content (error case), show retry directly
-        toggle(els.retryBtn, true);
-    }
-
-    // Setup cover letter-specific retry button listener
-    els.retryBtn = removeAllListeners(els.retryBtn);
-    els.retryBtn.addEventListener('click', async () => {
-        const currentCoverLetterOutput = currentJobCache.CoverLetter?.content;
-        const coverLetterRetryFeedback = els.coverLetterRetryFeedback.value;
-
-        // Only require feedback if there's existing content
-        if (hasContent && !coverLetterRetryFeedback) {
-            toggle(els.retryErrorMessage, true);
-            return;
-        }
-
-        await onGenerateCoverLetter(jobId, currentCoverLetterOutput, coverLetterRetryFeedback);
-        els.coverLetterRetryFeedback.value = '';
-        await updateJobCache(jobId, r => {
-            r.coverLetterRetryFeedback = null;
-        })
-        toggle(els.coverLetterRetryFeedbackSection, false);
-        toggle(els.outputWarning, false);
-        toggle(els.retryBtn, false);
-        toggle(els.thisNeedsWorkBtn, true);
-    });
-
-    els.coverLetterRetryFeedback = removeAllListeners(els.coverLetterRetryFeedback) as HTMLTextAreaElement;
-    els.coverLetterRetryFeedback.addEventListener('input', () => {
-        toggle(els.retryErrorMessage, false);
-        updateJobCache(jobId, r => {
-            r.coverLetterRetryFeedback = els.coverLetterRetryFeedback.value;
-        })
-    });
-
-    if (hasContent) {
-        toggle(els.downloadCoverLetterBtn, true);
-        const textSpan = els.downloadCoverLetterBtn.querySelector('span');
-        if (textSpan) {
-            textSpan.textContent = `Download as ${filename}`;
-        }
-
-        els.downloadCoverLetterBtn.onclick = () => {
-            downloadBlob(new Blob([els.coverLetterTextarea.value], {type: 'text/plain'}), filename);
-        };
-    }
-
-    toggle(els.tailorResumeBtn, true);
-
-    stateMachine.set(ViewState.CoverLetter, isBack, jobId);
-    latestJobId = jobId;
-}
-
-async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, jobId: string, isBack = false) {
-    abortController = null;
-    hideAll();
-    toggle(els.outputSection, true);
-    toggle(els.backBtn, true);
-    toggle(els.settingsBtn, true);
-    toggle(els.generateCoverLetterBtn, true);
-
-    const {jobPostingCache} = await getUserData();
-    const currentJobCache = jobPostingCache[jobId];
-    const hasContent = pdfBuffer && pdfBuffer.byteLength > 0;
-
-    els.resumeRetryFeedback.value = currentJobCache?.resumeRetryFeedback || '';
-
-    if (els.resumeRetryFeedback.value) {
-        // Already in feedback mode
-        toggle(els.resumeRetryFeedbackSection, true);
-        toggle(els.retryBtn, true);
-        toggle(els.outputWarning, true);
-        toggle(els.thisNeedsWorkBtn, false);
-    } else if (hasContent) {
-        // Has content, show "This needs work" button
-        toggle(els.thisNeedsWorkBtn, true);
-        els.thisNeedsWorkBtn = removeAllListeners(els.thisNeedsWorkBtn)
-        els.thisNeedsWorkBtn.addEventListener('click', async () => {
-            toggle(els.resumeRetryFeedbackSection, true);
-            toggle(els.retryBtn, true);
-            toggle(els.outputWarning, true);
-            toggle(els.thisNeedsWorkBtn, false);
-        })
-    } else {
-        // No content (error case), show retry directly
-        toggle(els.retryBtn, true);
-    }
-
-    // Setup resume-specific retry button listener
-    els.retryBtn = removeAllListeners(els.retryBtn);
-    els.retryBtn.addEventListener('click', async () => {
-        const currentResumeJsonString = currentJobCache.TailoredResume?.jsonString;
-        const resumeRetryFeedback = els.resumeRetryFeedback.value;
-
-        // Only require feedback if there's existing content
-        if (hasContent && !resumeRetryFeedback) {
-            toggle(els.retryErrorMessage, true);
-            return;
-        }
-
-        await onTailorResume(jobId, currentResumeJsonString, resumeRetryFeedback);
-        els.resumeRetryFeedback.value = '';
-        await updateJobCache(jobId, r => {
-            r.resumeRetryFeedback = null;
-        })
-        toggle(els.resumeRetryFeedbackSection, false);
-        toggle(els.outputWarning, false);
-        toggle(els.retryBtn, false);
-        toggle(els.thisNeedsWorkBtn, true);
-    });
-
-    els.resumeRetryFeedback = removeAllListeners(els.resumeRetryFeedback) as HTMLTextAreaElement;
-    els.resumeRetryFeedback.addEventListener('input', () => {
-        toggle(els.retryErrorMessage, false);
-        updateJobCache(jobId, r => {
-            r.resumeRetryFeedback = els.resumeRetryFeedback.value;
-        })
-    });
-
-    if (hasContent) {
-        toggle(els.downloadTailoredResumeBtn, true);
-        const textSpan = els.downloadTailoredResumeBtn.querySelector('span');
-        if (textSpan) {
-            textSpan.textContent = `Download as ${filename}`;
-        }
-
-        const blob = new Blob([pdfBuffer], {type: 'application/pdf'});
-
-        els.downloadTailoredResumeBtn.onclick = async () => {
-            const a = document.createElement('a');
-            const url = window.URL.createObjectURL(blob);
-
-            a.href = url;
-            a.download = filename;
-
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            let userData = await getUserData();
-            userData.resumesDownloaded++;
-            await saveUserData(userData);
-
-            if (userData.resumesDownloaded % 20 === 0) {
-                showSupportPopup();
-            }
-        };
-
-        await renderPdfPreview(pdfBuffer);
-    } else {
-        toggle(els.downloadTailoredResumeBtn, false);
-        console.error("The PDF buffer is empty. Cannot download a file.");
-    }
-
-    stateMachine.set(ViewState.ResumePreview, isBack, jobId);
-    latestJobId = jobId;
-}
-
 async function onSearchQueryRefresh(forceRegenerate: boolean): Promise<void> {
     const userRelevantData = await getUserData();
     toggle(els.querySection, false);
@@ -414,8 +532,8 @@ async function onSearchQueryRefresh(forceRegenerate: boolean): Promise<void> {
 }
 
 async function onAnalyze(selectedText: string, jobSpecificContext?: string, previousAnalysis?: string) {
-    console.log(`[onAnalyze] Function called. JobSpecificContext: ${!!jobSpecificContext}, PreviousAnalysis: ${!!previousAnalysis}`);
-    console.log(`[onAnalyze] Input text (first 50 chars): "${selectedText.substring(0, 50)}..."`);
+    sidepanelLogger.log(`[onAnalyze] Function called. JobSpecificContext: ${!!jobSpecificContext}, PreviousAnalysis: ${!!previousAnalysis}`);
+    sidepanelLogger.log(`[onAnalyze] Input text (first 50 chars): "${selectedText.substring(0, 50)}..."`);
 
     abortInFlight();
 
@@ -427,12 +545,12 @@ async function onAnalyze(selectedText: string, jobSpecificContext?: string, prev
         }
 
         const {jobPostingCache} = await getUserData();
-        console.log('[onAnalyze] Fetched user data. Cache size:', Object.keys(jobPostingCache || {}).length);
+        sidepanelLogger.log('[onAnalyze] Fetched user data. Cache size:', Object.keys(jobPostingCache || {}).length);
 
         // Skip caching if this is a retry with context/feedback
         const isRetry = !!(jobSpecificContext || previousAnalysis);
         if (!isRetry && jobPostingText && jobPostingCache) {
-            console.log('[onAnalyze] Starting cache lookup...');
+            sidepanelLogger.log('[onAnalyze] Starting cache lookup...');
             for (const jobId in jobPostingCache) {
                 const parts = jobId.split(' @ ');
                 if (parts.length < 2) continue;
@@ -441,15 +559,15 @@ async function onAnalyze(selectedText: string, jobSpecificContext?: string, prev
                 const companyNameFromCache = parts[1].toLowerCase();
                 const lowercaseJobText = jobPostingText.toLowerCase();
 
-                console.log(`[onAnalyze] Checking cache key: "${jobId}"`);
+                sidepanelLogger.log(`[onAnalyze] Checking cache key: "${jobId}"`);
                 if (lowercaseJobText.includes(jobTitleFromCache) && lowercaseJobText.includes(companyNameFromCache)) {
                     const rec = jobPostingCache[jobId];
-                    console.log(`[onAnalyze] CACHE HIT! Returning cached data for: "${jobId}"`);
+                    sidepanelLogger.log(`[onAnalyze] CACHE HIT! Returning cached data for: "${jobId}"`);
                     await showAnalysis(rec.Analysis, jobId, false);
                     return;
                 }
             }
-            console.log('[onAnalyze] CACHE MISS. No matching entry found.');
+            sidepanelLogger.log('[onAnalyze] CACHE MISS. No matching entry found.');
         }
 
         abortController = new AbortController();
@@ -458,21 +576,21 @@ async function onAnalyze(selectedText: string, jobSpecificContext?: string, prev
             intervalMs: 6000,
             stopOn: abortController.signal,
         });
-        console.log('[onAnalyze] Calling server for new analysis...');
+        sidepanelLogger.log('[onAnalyze] Calling server for new analysis...');
 
         const response = await serverComms.analyzeJobPosting(
             selectedText, abortController.signal, jobSpecificContext, previousAnalysis
         );
 
         if (!response) {
-            console.log('[onAnalyze] Request was aborted after server response');
+            sidepanelLogger.log('[onAnalyze] Request was aborted after server response');
             return;
         }
 
         const {jobId, companyName, jobAnalysis} = response;
 
         latestJobId = jobId;
-        console.log(`[onAnalyze] Server response received. New jobId: "${jobId}"`);
+        sidepanelLogger.log(`[onAnalyze] Server response received. New jobId: "${jobId}"`);
 
         await updateJobCache(jobId, r => {
             r.jobPostingText = jobPostingText;
@@ -480,21 +598,32 @@ async function onAnalyze(selectedText: string, jobSpecificContext?: string, prev
             r.Analysis = jobAnalysis;
         });
 
-        console.log('[onAnalyze] Cache updated successfully. Showing output.');
+        sidepanelLogger.log('[onAnalyze] Cache updated successfully. Showing output.');
         await showAnalysis(jobAnalysis, jobId);
 
     } catch (e: any) {
         console.error('[onAnalyze] Analysis failed. Error:', e);
-        showError(e?.message ?? 'Unexpected error during analysis.', ViewState.Analysis);
+
+        // Create retry context with original parameters
+        const retryContext: RetryContext = {
+            operation: 'analyze',
+            originalParams: {
+                selectedText,
+                jobSpecificContext,
+                previousAnalysis
+            }
+        };
+
+        showError(e?.message ?? 'Unexpected error during analysis.', ViewState.Analysis, retryContext);
     } finally {
-        console.log('[onAnalyze] onAnalyze finished. Stopping loading spinner.');
+        sidepanelLogger.log('[onAnalyze] onAnalyze finished. Stopping loading spinner.');
         loadingRotator.stop();
         abortController = null;
     }
 }
 
 async function onGenerateCoverLetter(jobId: string, currentContent?: string, retryFeedback?: string) {
-    console.log(`[onGenerateCoverLetter] Function called. JobId: "${jobId}", CurrentContent: ${!!currentContent}, RetryFeedback: ${!!retryFeedback}`);
+    sidepanelLogger.log(`[onGenerateCoverLetter] Function called. JobId: "${jobId}", CurrentContent: ${!!currentContent}, RetryFeedback: ${!!retryFeedback}`);
 
     abortInFlight();
     abortController = new AbortController();
@@ -506,22 +635,22 @@ async function onGenerateCoverLetter(jobId: string, currentContent?: string, ret
 
     try {
         const {jobPostingCache, resumeJsonData} = await getUserData();
-        console.log(`[onGenerateCoverLetter] Fetched user data. Looking for jobId: "${jobId}" in cache.`);
+        sidepanelLogger.log(`[onGenerateCoverLetter] Fetched user data. Looking for jobId: "${jobId}" in cache.`);
 
         // Skip caching if this is a retry with feedback
         const isRetry = !!(currentContent || retryFeedback);
         if (!isRetry && jobPostingCache[jobId]?.CoverLetter) {
-            console.log(`[onGenerateCoverLetter] CACHE HIT! Returning cached cover letter for: "${jobId}"`);
+            sidepanelLogger.log(`[onGenerateCoverLetter] CACHE HIT! Returning cached cover letter for: "${jobId}"`);
             const cachedLetter = jobPostingCache[jobId].CoverLetter;
             await showCoverLetter(cachedLetter.filename, cachedLetter.content, jobId);
             return cachedLetter;
         }
 
-        console.log(`[onGenerateCoverLetter] Calling server for ${isRetry ? 'retry' : 'new'} cover letter for: "${jobId}"`);
+        sidepanelLogger.log(`[onGenerateCoverLetter] Calling server for ${isRetry ? 'retry' : 'new'} cover letter for: "${jobId}"`);
         const response = await serverComms.generateCoverLetter(jobId, abortController.signal, currentContent, retryFeedback);
 
         if (!response) {
-            console.log('[onGenerateCoverLetter] Request was aborted after server response');
+            sidepanelLogger.log('[onGenerateCoverLetter] Request was aborted after server response');
             return;
         }
 
@@ -529,27 +658,38 @@ async function onGenerateCoverLetter(jobId: string, currentContent?: string, ret
 
         const companyName = jobPostingCache[jobId]?.CompanyName || 'UnknownCompany';
         const filename = `${resumeJsonData.personal.full_name}_cover_letter_${companyName}.txt`;
-        console.log(`[onGenerateCoverLetter] Server response received. Filename: "${filename}"`);
+        sidepanelLogger.log(`[onGenerateCoverLetter] Server response received. Filename: "${filename}"`);
 
         await updateJobCache(jobId, r => {
             r.CoverLetter = {filename, content};
         });
 
-        console.log('[onGenerateCoverLetter] Cache updated successfully. Showing cover letter.');
+        sidepanelLogger.log('[onGenerateCoverLetter] Cache updated successfully. Showing cover letter.');
         await showCoverLetter(filename, content, jobId);
         return {filename, content};
     } catch (e: any) {
         console.error('[onGenerateCoverLetter] Failed to draft cover letter. Error:', e);
-        showError(e?.message ?? 'Failed to draft a cover letter.', ViewState.CoverLetter);
+
+        // Create retry context
+        const retryContext: RetryContext = {
+            operation: 'cover-letter',
+            jobId,
+            originalParams: {
+                currentContent,
+                retryFeedback
+            }
+        };
+
+        showError(e?.message ?? 'Failed to draft a cover letter.', ViewState.CoverLetter, retryContext);
     } finally {
-        console.log('[onGenerateCoverLetter] Finished. Stopping loading spinner.');
+        sidepanelLogger.log('[onGenerateCoverLetter] Finished. Stopping loading spinner.');
         loadingRotator.stop();
         abortController = null;
     }
 }
 
 async function onTailorResume(jobId: string, currentResumeData?: string, retryFeedback?: string) {
-    console.log(`[onTailorResume] Function called. JobId: "${jobId}", CurrentResumeData: ${!!currentResumeData}, RetryFeedback: ${!!retryFeedback}`);
+    sidepanelLogger.log(`[onTailorResume] Function called. JobId: "${jobId}", CurrentResumeData: ${!!currentResumeData}, RetryFeedback: ${!!retryFeedback}`);
 
     abortInFlight();
     abortController = new AbortController();
@@ -561,19 +701,19 @@ async function onTailorResume(jobId: string, currentResumeData?: string, retryFe
 
     try {
         const {resumeJsonData, jobPostingCache} = await getUserData();
-        console.log(`[onTailorResume] Fetched user data. Looking for jobId: "${jobId}" in cache.`);
+        sidepanelLogger.log(`[onTailorResume] Fetched user data. Looking for jobId: "${jobId}" in cache.`);
 
         // Skip caching if this is a retry with feedback
         const isRetry = !!(currentResumeData || retryFeedback);
         if (!isRetry && jobPostingCache[jobId]?.TailoredResume) {
-            console.log(`[onTailorResume] CACHE HIT! Returning cached tailored resume for: "${jobId}"`);
+            sidepanelLogger.log(`[onTailorResume] CACHE HIT! Returning cached tailored resume for: "${jobId}"`);
             const {filename, pdfArrayBufferInBase64} = jobPostingCache[jobId].TailoredResume;
             const pdfBuffer = base64ToArrayBuffer(pdfArrayBufferInBase64);
             await showResumePreview(filename, pdfBuffer, jobId);
             return {filename, pdfBuffer};
         }
 
-        console.log(`[onTailorResume] Calling server for ${isRetry ? 'retry' : 'new'} tailored resume for: "${jobId}"`);
+        sidepanelLogger.log(`[onTailorResume] Calling server for ${isRetry ? 'retry' : 'new'} tailored resume for: "${jobId}"`);
         const companyName = jobPostingCache[jobId]?.CompanyName || 'UnknownCompany';
         const filename = `${
             resumeJsonData.personal.full_name.toLowerCase().replace(/\s+/g, '_')
@@ -582,10 +722,10 @@ async function onTailorResume(jobId: string, currentResumeData?: string, retryFe
         }.pdf`;
 
         const response = await serverComms.tailorResume(jobId, filename, abortController.signal, currentResumeData, retryFeedback);
-        console.log(`[onTailorResume] Server response received for filename: "${filename}"`);
+        sidepanelLogger.log(`[onTailorResume] Server response received for filename: "${filename}"`);
 
         if (!response) {
-            console.log('[onTailorResume] Request was aborted after server response');
+            sidepanelLogger.log('[onTailorResume] Request was aborted after server response');
             return;
         }
         const {pdfBuffer, jsonString} = response;
@@ -599,14 +739,25 @@ async function onTailorResume(jobId: string, currentResumeData?: string, retryFe
             };
         });
 
-        console.log('[onTailorResume] Cache updated successfully. Showing resume preview.');
+        sidepanelLogger.log('[onTailorResume] Cache updated successfully. Showing resume preview.');
         await showResumePreview(filename, pdfBuffer, jobId);
         return {filename, pdfBuffer};
     } catch (e: any) {
         console.error('[onTailorResume] Failed to tailor resume. Error:', e);
-        showError(e?.message ?? 'Failed to tailor resume.', ViewState.ResumePreview);
+
+        // Create retry context
+        const retryContext: RetryContext = {
+            operation: 'resume',
+            jobId,
+            originalParams: {
+                currentResumeData,
+                retryFeedback
+            }
+        };
+
+        showError(e?.message ?? 'Failed to tailor resume.', ViewState.ResumePreview, retryContext);
     } finally {
-        console.log('[onTailorResume] Finished. Stopping loading spinner.');
+        sidepanelLogger.log('[onTailorResume] Finished. Stopping loading spinner.');
         loadingRotator.stop();
         abortController = null;
     }
@@ -668,7 +819,7 @@ async function showViewForState(state: ViewState, jobId: string | undefined, isB
 }
 
 async function showInstructions(isBack: boolean = false) {
-    console.log("sidepanel.ts: Showing instructions.");
+    sidepanelLogger.log("sidepanel.ts: Showing instructions.");
     const data = await getUserData()
     if (!data.resumeJsonData) {
         await showUserSettings()
@@ -715,19 +866,19 @@ function showSectionWithQuery(query: string) {
 els.saveAllSettingsBtn = removeAllListeners(els.saveAllSettingsBtn)
 els.saveAllSettingsBtn.addEventListener('click', saveUserSettings);
 
-console.log("sidepanel.ts: Setting up runtime message listener.");
+sidepanelLogger.log("sidepanel.ts: Setting up runtime message listener.");
 browser.runtime.onMessage.addListener((message, sender) => {
     // Log every message that comes into this listener.
-    console.log("sidepanel.ts: Message received!", {message, sender});
+    sidepanelLogger.log("sidepanel.ts: Message received!", {message, sender});
 
     // Check if the incoming message is of the correct type.
     if (message.type === 'selected-text' && message.text) {
-        console.log("sidepanel.ts: Received 'selected-text' message. Starting analysis...");
+        sidepanelLogger.log("sidepanel.ts: Received 'selected-text' message. Starting analysis...");
 
         // Call the asynchronous analysis function.
         // Note: The listener will continue to execute while onAnalyze is running.
         onAnalyze(message.text).then(() => {
-            console.log("sidepanel.ts: onAnalyze completed successfully.");
+            sidepanelLogger.log("sidepanel.ts: onAnalyze completed successfully.");
             // You can optionally return true here to signal to the sender that
             // you are handling the message asynchronously.
         }).catch((error) => {
@@ -738,7 +889,7 @@ browser.runtime.onMessage.addListener((message, sender) => {
         });
     } else {
         // Log if the message type is not what we expect.
-        console.log("sidepanel.ts: Message type is not 'selected-text'. Ignoring.");
+        sidepanelLogger.log("sidepanel.ts: Message type is not 'selected-text'. Ignoring.");
     }
 });
 
@@ -746,8 +897,8 @@ browser.runtime.onMessage.addListener((message, sender) => {
 addGlobalEventListeners();
 showInstructions();
 
-console.log("sidepanel.ts: Attempting to send 'side-panel-ready' message.");
+sidepanelLogger.log("sidepanel.ts: Attempting to send 'side-panel-ready' message.");
 browser.runtime.sendMessage({type: 'side-panel-ready'}).catch(error => {
     // Log if the message fails to send, which can happen if no one is listening yet.
-    console.log('sidepanel.ts: Error sending side-panel-ready message:', error);
+    sidepanelLogger.log('sidepanel.ts: Error sending side-panel-ready message:', error);
 });

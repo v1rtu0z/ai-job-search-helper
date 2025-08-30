@@ -1,5 +1,8 @@
 import {browser, Runtime} from "webextension-polyfill-ts";
 import MessageSender = Runtime.MessageSender;
+import {DebugLogger} from "./logging";
+
+export const serviceWorkerLogger = new DebugLogger('service-worker');
 
 // Define types for context menu data and tab information
 interface ContextMenuData extends chrome.contextMenus.OnClickData {
@@ -27,7 +30,7 @@ chrome.runtime.onInstalled.addListener(() => {
         chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
             .catch((error) => console.error('Error setting side panel behavior:', error));
     }
-    console.log("Service Worker installed/updated. Context menu and side panel behavior set up.");
+    serviceWorkerLogger.log("Service Worker installed/updated. Context menu and side panel behavior set up.");
 });
 
 // Listener for context menu clicks
@@ -43,7 +46,7 @@ chrome.contextMenus.onClicked.addListener((data: ContextMenuData, tab?: Tab) => 
     // Check if the sidePanel API exists to differentiate between Chrome and Firefox.
     if (chrome.sidePanel) {
         // --- Chrome Logic ---
-        console.log("Using Chrome side panel API.");
+        serviceWorkerLogger.log("Using Chrome side panel API.");
         // Open the side panel for the current tab.
         chrome.sidePanel.open({ tabId: tabId });
 
@@ -56,7 +59,7 @@ chrome.contextMenus.onClicked.addListener((data: ContextMenuData, tab?: Tab) => 
             console.warn('Side panel not active yet, adding a listener for its readiness:', error);
             const messageListener = (message: any, sender: chrome.runtime.MessageSender) => {
                 if (message.type === 'side-panel-ready' && sender.tab?.id === tabId) {
-                    console.log('Side panel is ready, sending selected text.');
+                    serviceWorkerLogger.log('Side panel is ready, sending selected text.');
                     chrome.runtime.sendMessage({
                         type: 'selected-text',
                         text: selectedText
@@ -70,7 +73,7 @@ chrome.contextMenus.onClicked.addListener((data: ContextMenuData, tab?: Tab) => 
         });
     } else {
         // --- Firefox Logic ---
-        console.log("Using Firefox sidebar action window.");
+        serviceWorkerLogger.log("Using Firefox sidebar action window.");
 
         // First, open the sidebar. This will open it in the current browser window.
         browser.sidebarAction.open();
@@ -82,7 +85,7 @@ chrome.contextMenus.onClicked.addListener((data: ContextMenuData, tab?: Tab) => 
             console.warn('Sidebar not active yet, adding a listener for its readiness:', error);
             const messageListener = (message: any, sender: MessageSender) => {
                 if (message.type === 'side-panel-ready') {
-                    console.log('Sidebar is ready, sending selected text.');
+                    serviceWorkerLogger.log('Sidebar is ready, sending selected text.');
                     browser.runtime.sendMessage({
                         type: 'selected-text',
                         text: selectedText
@@ -104,7 +107,7 @@ browser.commands.onCommand.addListener((command: string) => {
         if (typeof browser.sidebarAction !== 'undefined') {
             // Use Firefox's sidebarAction API
             browser.sidebarAction.open();
-            console.log("Firefox sidebar opened.");
+            serviceWorkerLogger.log("Firefox sidebar opened.");
         }
 
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -115,7 +118,7 @@ browser.commands.onCommand.addListener((command: string) => {
             if (typeof chrome.sidePanel !== 'undefined') {
                 // Use Chrome's sidePanel API
                 chrome.sidePanel.open({ tabId: activeTab.id });
-                console.log("Chrome side panel opened.");
+                serviceWorkerLogger.log("Chrome side panel opened.");
             }
 
             if (activeTab && activeTab.id) {
@@ -124,7 +127,6 @@ browser.commands.onCommand.addListener((command: string) => {
                     func: () => window.getSelection()?.toString()
                 }).then(selectionResult => {
                     const selectedText = selectionResult[0].result;
-                    const tabId = activeTab.id;
 
                     if (selectedText) {
                         // Try to send the message synchronously
@@ -138,7 +140,7 @@ browser.commands.onCommand.addListener((command: string) => {
                             // Create a temporary listener for the 'side-panel-ready' message.
                             const messageListener = (message: any, sender: MessageSender) => {
                                 if (message.type === 'side-panel-ready') {
-                                    console.log('Side panel is ready, sending selected text.');
+                                    serviceWorkerLogger.log('Side panel is ready, sending selected text.');
 
                                     // Once ready, send the message.
                                     browser.runtime.sendMessage({
@@ -170,7 +172,7 @@ browser.commands.onCommand.addListener((command: string) => {
 // Listener for clicks on the extension's toolbar icon.
 // This is required for Firefox to open the sidebar.
 browser.action.onClicked.addListener((tab) => {
-    console.log("service-worker.ts: Toolbar icon clicked.");
+    serviceWorkerLogger.log("service-worker.ts: Toolbar icon clicked.");
     if (tab && tab.id) {
         // Since we are clicking the icon, there is no selected text.
         // We still need to open the side panel/sidebar.
@@ -179,11 +181,11 @@ browser.action.onClicked.addListener((tab) => {
         if (typeof chrome.sidePanel !== 'undefined' && chrome.sidePanel.open) {
             // Chrome's Manifest V3 handles this behavior with the `setPanelBehavior` call.
             // This listener is a good fallback, but Chrome should handle it automatically.
-            console.log("service-worker.ts: Using chrome.sidePanel.open for toolbar icon.");
+            serviceWorkerLogger.log("service-worker.ts: Using chrome.sidePanel.open for toolbar icon.");
             chrome.sidePanel.open({ tabId: tab.id });
         } else if (typeof browser.sidebarAction !== 'undefined' && browser.sidebarAction.open) {
             // --- Firefox Logic: Open the sidebar. ---
-            console.log("service-worker.ts: Using browser.sidebarAction.open for toolbar icon.");
+            serviceWorkerLogger.log("service-worker.ts: Using browser.sidebarAction.open for toolbar icon.");
             browser.sidebarAction.open();
         } else {
             console.error("service-worker.ts: Neither sidePanel nor sidebarAction are available to open from icon click.");

@@ -1,6 +1,3 @@
-import {hideAll, toggle} from "./view";
-import {els} from "./dom";
-
 export enum ViewState {
     Instructions = 'instructions',
     Analysis = 'analysis',
@@ -40,14 +37,3 @@ export class StateMachine {
 }
 
 export const stateMachine = new StateMachine();
-
-export function showError(errorMessage: string, state: ViewState, isBack = false) {
-    hideAll();
-    els.analysisContent.textContent = errorMessage;
-    toggle(els.outputSection, true);
-    toggle(els.analysisContent, true);
-    toggle(els.retryBtn, true);
-    toggle(els.backBtn, true);
-    toggle(els.settingsBtn, true);
-    stateMachine.set(state, isBack);
-}

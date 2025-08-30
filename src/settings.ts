@@ -5,8 +5,11 @@ import {els} from "./dom";
 import * as serverComms from "./server-comms";
 import {hideAll, toggle} from "./view";
 import {getPdfText, goBack, removeAllListeners} from "./sidepanel";
+import {DebugLogger} from "./logging";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "./pdf.worker.mjs";
+
+export const settingsLogger = new DebugLogger('settings');
 
 // Browser detection functions
 export function isFirefox(): boolean {
@@ -80,7 +83,7 @@ function manageTheme(userRelevantData: UserRelevantData) {
  * @param userData The user data object to be updated.
  */
 async function parseAndUpdateResume(userData: UserRelevantData): Promise<void> {
-    console.log('parseAndUpdateResume called');
+    settingsLogger.log('parseAndUpdateResume called');
     // Check for a file and additional details before proceeding
     if (!userData.resumeFileContent) {
         els.userDetailsMessage.textContent = 'Please upload a resume file first.';
@@ -125,7 +128,7 @@ export function showSettingsExplainerPopup() {
         els.settingsExplainerOverlay.classList.remove('hidden');
 
         els.closeExplainerBtn.addEventListener('click', () => {
-            console.log('closeExplainerBtn clicked');
+            settingsLogger.log('closeExplainerBtn clicked');
             els.settingsExplainerOverlay.classList.add('hidden');
         }, {once: true});
 

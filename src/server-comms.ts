@@ -1,8 +1,10 @@
 import {getUserData} from "./storage";
 import {els} from "./dom";
-import {showError, ViewState} from "./state";
+import {ViewState} from "./state";
 import {jwtDecode} from 'jwt-decode';
 import {base64ToArrayBuffer} from "./resumePreview";
+import {showError} from "./sidepanel";
+import {DebugLogger} from "./logging";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const EXTENSION_SECRET_KEY = import.meta.env.VITE_EXTENSION_SECRET_KEY;
@@ -14,6 +16,8 @@ It looks like you've used the service a lot in a short amount of time! To help w
 
 Please consider supporting the project to help us increase these limits.
 Thank you for your understanding!`;
+
+export const serverCommsLogger = new DebugLogger('server-comms');
 
 /**
  * Authenticates with the server to get a temporary JWT token.
@@ -115,7 +119,7 @@ async function makeApiCallWithFallback(
         }
 
         // If we get 429, fall through to try fallback model
-        console.log(`Got 429 with primary model, trying fallback model`);
+        serverCommsLogger.log(`Got 429 with primary model, trying fallback model`);
     } catch (error: any) {
         if (!error.message?.includes('429')) {
             throw error; // Re-throw non-429 errors
@@ -196,35 +200,26 @@ export async function analyzeJobPosting(
     companyName: string,
     jobAnalysis: string
 }> {
-    try {
-        if (signal.aborted) return;
-        const {resumeJsonData} = await getUserData();
+    if (signal.aborted) return;
+    const {resumeJsonData} = await getUserData();
 
-        const requestData = {
-            job_posting_text: jobPostingText,
-            resume_json_data: JSON.stringify(resumeJsonData),
-            ...(previousAnalysis && {previous_analysis: previousAnalysis}),
-            ...(jobSpecificContext && {job_specific_context: jobSpecificContext}),
-        };
+    const requestData = {
+        job_posting_text: jobPostingText,
+        resume_json_data: JSON.stringify(resumeJsonData),
+        ...(previousAnalysis && {previous_analysis: previousAnalysis}),
+        ...(jobSpecificContext && {job_specific_context: jobSpecificContext}),
+    };
 
-        const data = await makeApiCallWithFallback('/analyze-job-posting', requestData, ViewState.Analysis);
+    const data = await makeApiCallWithFallback('/analyze-job-posting', requestData, ViewState.Analysis);
 
-        if (signal.aborted) return;
+    if (signal.aborted) return;
 
-        console.log('Job Analysis Response:', data);
-        return {
-            jobId: data.job_id,
-            companyName: data.company_name,
-            jobAnalysis: data.job_analysis,
-        };
-    } catch (error: any) {
-        console.error('Error processing selected text:', error);
-        const errorMessage = `Analysis Failed
-An error occurred while analyzing the job posting. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
-Please check your API key and network connection, then try again.`;
-        showError(errorMessage, ViewState.Analysis);
-        throw error;
-    }
+    serverCommsLogger.log('Job Analysis Response:', data);
+    return {
+        jobId: data.job_id,
+        companyName: data.company_name,
+        jobAnalysis: data.job_analysis,
+    };
 }
 
 export async function generateCoverLetter(
@@ -235,34 +230,25 @@ export async function generateCoverLetter(
 ): Promise<{
     content: string
 }> {
-    try {
-        if (signal.aborted) return;
-        const {resumeJsonData, jobPostingCache} = await getUserData();
+    if (signal.aborted) return;
+    const {resumeJsonData, jobPostingCache} = await getUserData();
 
-        const requestData = {
-            job_posting_text: jobPostingCache[jobId].jobPostingText,
-            job_specific_context: jobPostingCache[jobId].jobSpecificContext,
-            resume_json_data: JSON.stringify(resumeJsonData),
-            ...(currentContent && {current_content: currentContent}),
-            ...(retryFeedback && {retry_feedback: retryFeedback})
-        };
+    const requestData = {
+        job_posting_text: jobPostingCache[jobId].jobPostingText,
+        job_specific_context: jobPostingCache[jobId].jobSpecificContext,
+        resume_json_data: JSON.stringify(resumeJsonData),
+        ...(currentContent && {current_content: currentContent}),
+        ...(retryFeedback && {retry_feedback: retryFeedback})
+    };
 
-        const data = await makeApiCallWithFallback('/generate-cover-letter', requestData, ViewState.CoverLetter);
+    const data = await makeApiCallWithFallback('/generate-cover-letter', requestData, ViewState.CoverLetter);
 
-        if (signal.aborted) return;
+    if (signal.aborted) return;
 
-        console.log('Cover Letter Response:', data);
-        return {
-            content: data.content
-        };
-    } catch (error: any) {
-        console.error('Error drafting a cover letter:', error);
-        const errorMessage = `Cover letter generation Failed
-An error occurred while drafting a cover letter. This could be due to an invalid API key, network issues, or a problem with the Gemini service.
-Please check your API key and network connection, then try again.`;
-        showError(errorMessage, ViewState.CoverLetter);
-        throw error;
-    }
+    serverCommsLogger.log('Cover Letter Response:', data);
+    return {
+        content: data.content
+    };
 }
 
 /**
@@ -285,83 +271,75 @@ export async function tailorResume(
     pdfBuffer: ArrayBuffer,
     jsonString: string
 }> {
-    try {
-        if (signal.aborted) {
-            return Promise.reject(new Error('Request aborted before start.'));
-        }
-
-        // Fetch user data and job posting information
-        const {resumeJsonData, theme, jobPostingCache} = await getUserData();
-        const jobPostingText = jobPostingCache[jobId]?.jobPostingText;
-
-        // Prepare a single request body for the consolidated endpoint
-        const requestData = {
-            job_posting_text: jobPostingText,
-            resume_json_data: JSON.stringify(resumeJsonData),
-            theme: theme,
-            filename: filename,
-            ...(currentResumeData && {current_resume_data: currentResumeData}),
-            ...(retryFeedback && {retry_feedback: retryFeedback})
-        };
-
-        const makeRequest = async (useFallback = false) => {
-            const {headers, body} = await getAuthHeadersAndBody(requestData, useFallback);
-            // Call the new, single consolidated endpoint
-            return fetch(`${API_BASE_URL}/tailor-resume`, {
-                method: 'POST',
-                headers,
-                body,
-                signal
-            });
-        };
-
-        // Try with primary model first
-        let response: Response;
-        try {
-            response = await makeRequest(false);
-            if (response.status === 429) {
-                console.log('Got 429 with primary model, trying fallback model');
-                response = await makeRequest(true);
-            }
-        } catch (error: any) {
-            if (error.message?.includes('429')) {
-                response = await makeRequest(true);
-            } else {
-                throw error;
-            }
-        }
-
-        if (signal.aborted) {
-            throw new Error('Request aborted');
-        }
-
-        if (response.status === 429) {
-            showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.ResumePreview);
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Too many requests made to the server.');
-        }
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to tailor and render resume on server.');
-        }
-
-        // Parse the single JSON response
-        const responseData = await response.json();
-
-        // Convert the base64 PDF string back to an ArrayBuffer
-        const pdfBuffer = base64ToArrayBuffer(responseData.pdf_base64_string);
-        const jsonString = JSON.stringify(responseData.tailored_resume_json);
-
-        return {
-            pdfBuffer,
-            jsonString
-        };
-
-    } catch (error: any) {
-        console.error('Error tailoring resume:', error);
-        const errorMessage = 'Resume Tailoring Failed';
-        showError(errorMessage, ViewState.ResumePreview);
-        throw error;
+    if (signal.aborted) {
+        return Promise.reject(new Error('Request aborted before start.'));
     }
+
+    // Fetch user data and job posting information
+    const {resumeJsonData, theme, jobPostingCache} = await getUserData();
+    const jobPostingText = jobPostingCache[jobId]?.jobPostingText;
+
+    // Prepare a single request body for the consolidated endpoint
+    const requestData = {
+        job_posting_text: jobPostingText,
+        resume_json_data: JSON.stringify(resumeJsonData),
+        theme: theme,
+        filename: filename,
+        ...(currentResumeData && {current_resume_data: currentResumeData}),
+        ...(retryFeedback && {retry_feedback: retryFeedback})
+    };
+
+    const makeRequest = async (useFallback = false) => {
+        const {headers, body} = await getAuthHeadersAndBody(requestData, useFallback);
+        // Call the new, single consolidated endpoint
+        return fetch(`${API_BASE_URL}/tailor-resume`, {
+            method: 'POST',
+            headers,
+            body,
+            signal
+        });
+    };
+
+    // Try with primary model first
+    let response: Response;
+    try {
+        response = await makeRequest(false);
+        if (response.status === 429) {
+            serverCommsLogger.log('Got 429 with primary model, trying fallback model');
+            response = await makeRequest(true);
+        }
+    } catch (error: any) {
+        if (error.message?.includes('429')) {
+            response = await makeRequest(true);
+        } else {
+            throw error;
+        }
+    }
+
+    if (signal.aborted) {
+        throw new Error('Request aborted');
+    }
+
+    if (response.status === 429) {
+        showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.ResumePreview);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Too many requests made to the server.');
+    }
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to tailor and render resume on server.');
+    }
+
+    // Parse the single JSON response
+    const responseData = await response.json();
+
+    // Convert the base64 PDF string back to an ArrayBuffer
+    const pdfBuffer = base64ToArrayBuffer(responseData.pdf_base64_string);
+    const jsonString = JSON.stringify(responseData.tailored_resume_json);
+
+    return {
+        pdfBuffer,
+        jsonString
+    };
 }
