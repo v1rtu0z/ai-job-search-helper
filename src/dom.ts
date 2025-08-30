@@ -67,4 +67,5 @@ export const els = {
     retryErrorMessage: document.getElementById('retry-error-message') as HTMLParagraphElement,
     thisNeedsWorkBtn: document.getElementById('this-needs-work-btn') as HTMLButtonElement,
     outputWarning: document.getElementById('output-warning') as HTMLDivElement,
+    dataConsentCheckbox: document.getElementById('data-consent-checkbox') as HTMLInputElement,
 };

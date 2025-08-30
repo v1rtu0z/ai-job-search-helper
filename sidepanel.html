@@ -566,7 +566,7 @@
 <div id="settings-explainer-overlay"
      class="fixed inset-0 backdrop-overlay flex items-center justify-center z-50 hidden transition-opacity duration-300">
     <div id="settings-explainer-modal"
-         class="bg-white p-6 rounded-lg shadow-xl text-left max-w-xl w-full mx-4 relative">
+         class="bg-white p-6 rounded-lg shadow-xl text-left max-w-xl w-full mx-4 relative text-sm">
         <button id="close-explainer-btn"
                 class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 cursor-pointer p-1 text-xl font-bold mb-2">
             ✖
@@ -593,6 +593,21 @@
             interested in, preferred industries, or salary expectations. This helps the AI be even more precise in its
             suggestions.
         </p>
+
+        <!-- Data consent section -->
+        <div class="border-t pt-4 mt-4">
+            <div class="flex items-start space-x-3">
+                <input type="checkbox"
+                       id="data-consent-checkbox"
+                       class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                <label for="data-consent-checkbox" class="text-gray-700 leading-relaxed cursor-pointer">
+                    <strong>Help improve this extension (Optional)</strong><br>
+                    Allow logging of your data when technical issues occur.
+                    This helps me diagnose problems and improve the extension.
+                    Logs would be the only place where your data gets stored and would never be used for any other purpose.
+                </label>
+            </div>
+        </div>
     </div>
 </div>
 

@@ -65,11 +65,12 @@ async function getAuthHeadersAndBody(data: any, useModelOverride: boolean = fals
         JWT_TOKEN = token;
     }
 
-    const {googleApiKey, modelName, fallbackModelName} = await getUserData();
+    const {googleApiKey, privateDataLogging, modelName, fallbackModelName} = await getUserData();
     const body = {
         ...data,
         model_name: useModelOverride ? fallbackModelName : modelName,
-        gemini_api_key: googleApiKey || ''
+        gemini_api_key: googleApiKey || '',
+        private_data_logging: privateDataLogging,
     };
 
     return {

@@ -127,6 +127,12 @@ export function showSettingsExplainerPopup() {
     if (els.settingsExplainerOverlay && els.closeExplainerBtn && els.settingsExplainerModal) {
         els.settingsExplainerOverlay.classList.remove('hidden');
 
+        els.dataConsentCheckbox.addEventListener('change', async () => {
+            let userData = await getUserData();
+            userData.privateDataLogging = els.dataConsentCheckbox.checked;
+            await saveUserData(userData);
+        });
+
         els.closeExplainerBtn.addEventListener('click', () => {
             settingsLogger.log('closeExplainerBtn clicked');
             els.settingsExplainerOverlay.classList.add('hidden');

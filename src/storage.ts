@@ -10,6 +10,7 @@ export type JobPostingCacheRecord = {
 };
 
 export interface UserRelevantData {
+    privateDataLogging: boolean;
     googleApiKey?: string;
     resumeJsonData?: any;
     resumeFileName?: string;
@@ -27,6 +28,7 @@ export async function getUserData(): Promise<UserRelevantData> {
     const {userRelevantData} = await chrome.storage.local.get('userRelevantData');
     return userRelevantData ?? {
         googleApiKey: '',
+        privateDataLogging: false,
         modelName: 'gemini-2.5-flash',
         fallbackModelName: 'gemini-2.0-flash',
         theme: 'engineeringclassic',
