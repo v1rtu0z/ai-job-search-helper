@@ -113,6 +113,19 @@ async function makeApiCallWithFallback(
 
         if (response.status !== 429) {
             if (!response.ok) {
+                if (response.status > 500) {
+                    throw new Error(`Server error. In case this keeps happening, please contact me about it`);
+                }
+
+                if (response.status === 422) {
+                    const errorData = await response.json();
+                    throw new Error(
+                        'Invalid input. Please check your resume content and try again. If the problem persists, ' +
+                        'please contact me about it. ' +
+                        `Error: ${errorData.error}`
+                    );
+                }
+
                 const errorData = await response.json();
                 throw new Error(errorData.error || `Failed to call ${endpoint}`);
             }
@@ -143,6 +156,19 @@ async function makeApiCallWithFallback(
         }
 
         if (!response.ok) {
+            if (response.status > 500) {
+                throw new Error(`Server error. In case this keeps happening, please contact me about it.`);
+            }
+
+            if (response.status === 422) {
+                const errorData = await response.json();
+                throw new Error(
+                    'Invalid input. Please check your resume content and try again. If the problem persists, ' +
+                    'please contact me about it. ' +
+                    `Error: ${errorData.error}`
+                );
+            }
+
             const errorData = await response.json();
             throw new Error(errorData.error || `Failed to call ${endpoint} with fallback model`);
         }
@@ -305,10 +331,24 @@ export async function tailorResume(
     let response: Response;
     try {
         response = await makeRequest(false);
+        if (response.status === 422) {
+            const errorData = await response.json();
+            throw new Error(
+                'Invalid input. Please check your resume content and try again. If the problem persists, ' +
+                'please contact me about it. ' +
+                `Error: ${errorData.error}`
+            );
+        }
+
+        if (response.status > 500) {
+            throw new Error(`Server error. In case this keeps happening, please contact me about it`);
+        }
+
         if (response.status === 429) {
             serverCommsLogger.log('Got 429 with primary model, trying fallback model');
             response = await makeRequest(true);
         }
+
     } catch (error: any) {
         if (error.message?.includes('429')) {
             response = await makeRequest(true);
@@ -319,6 +359,19 @@ export async function tailorResume(
 
     if (signal.aborted) {
         throw new Error('Request aborted');
+    }
+
+    if (response.status === 422) {
+        const errorData = await response.json();
+        throw new Error(
+            'Invalid input. Please check your resume content and try again. If the problem persists, ' +
+            'please contact me about it. ' +
+            `Error: ${errorData.error}`
+        );
+    }
+
+    if (response.status > 500) {
+        throw new Error(`Server error. In case this keeps happening, please contact me about it`);
     }
 
     if (response.status === 429) {

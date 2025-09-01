@@ -381,7 +381,7 @@ async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, jobId
     latestJobId = jobId;
 }
 
-// fixme: this doesn't seem to work great with some pdf
+// fixme: this doesn't seem to work great with some pdf. Gather examples and investigate
 export async function getPdfText(file: File): Promise<string> {
     const arrayBuffer = await new Response(file).arrayBuffer();
     const pdf = await pdfjs.getDocument({data: arrayBuffer}).promise;
