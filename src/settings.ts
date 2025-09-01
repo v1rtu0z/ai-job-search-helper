@@ -240,6 +240,8 @@ export async function showUserSettings() {
         }
     });
 
+    els.dataConsentCheckboxSettings.checked = userData.privateDataLogging;
+
     // Add the event listener for the additional details textarea
     els.additionalDetailsTextarea = removeAllListeners(els.additionalDetailsTextarea);
     els.additionalDetailsTextarea.addEventListener('input', () => {
@@ -297,6 +299,8 @@ export async function saveUserSettings() {
         }
 
         userRelevantData.theme = els.currentThemeName.textContent;
+
+        userRelevantData.privateDataLogging = els.dataConsentCheckboxSettings.checked;
 
         // Save user data
         await saveUserData(userRelevantData);

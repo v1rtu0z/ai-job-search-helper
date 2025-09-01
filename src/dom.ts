@@ -68,4 +68,5 @@ export const els = {
     thisNeedsWorkBtn: document.getElementById('this-needs-work-btn') as HTMLButtonElement,
     outputWarning: document.getElementById('output-warning') as HTMLDivElement,
     dataConsentCheckbox: document.getElementById('data-consent-checkbox') as HTMLInputElement,
+    dataConsentCheckboxSettings: document.getElementById('data-consent-checkbox-settings') as HTMLInputElement,
 };
