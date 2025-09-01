@@ -11,7 +11,10 @@ The AI Job Search Helper is a browser extension designed to help you analyze job
 
 ## **Upcoming Features**
 
+* **Translations to various languages:** The UI will get translated to Serbian, Italian and any other language that users ask for.
+* **Assistance with application form data input:** Assistant will help you fill in the application form based on your data.
 * **Text selection improvements:** A selector in the style of "inspect element" will be added to ease selecting the JD text.
+* **Potential undetectable.ai integration:** The assistant will generate text that can't easily be recognized as AI.
 * **Resume Analysis:** Analyze the resume and suggest changes to improve it.
 * **Application Tracking:** Application calendar with reminders to reach out to the company with drafted messages.
 
