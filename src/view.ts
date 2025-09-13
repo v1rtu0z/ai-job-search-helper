@@ -1,10 +1,10 @@
 import {els} from './dom';
 
 export const allSections = [
-    els.apiKeySection, els.userDetailsSection, els.instructionDisplay, els.outputSection,
+    els.analysisContent, els.userDetailsSection, els.instructionDisplay, els.outputSection,
     els.loadingSpinnerSection, els.settingsView, els.resumePreviewContainer, els.coverLetterWarning,
     els.googleAiConfigSection, els.advancedSettingsToggle, els.backBtn, els.tailorResumeBtn,
-    els.generateCoverLetterBtn, els.downloadCoverLetterBtn, els.retryBtn, els.analysisContent,
+    els.generateCoverLetterBtn, els.downloadCoverLetterBtn, els.retryBtn, els.apiKeySection,
     els.coverLetterTextarea, els.coverLetterTextareaTitle, els.settingsBtn, els.downloadTailoredResumeBtn,
     els.jobSpecificContextSection, els.resumeRetryFeedbackSection, els.coverLetterRetryFeedbackSection,
     els.retryErrorMessage, els.thisNeedsWorkBtn, els.outputWarning, els.advancedSettingsContent

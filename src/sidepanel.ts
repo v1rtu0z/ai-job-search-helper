@@ -73,7 +73,7 @@ function setupRetryForCurrentView() {
             await executeRetry(currentRetryContext);
 
             // Clear feedback and reset UI state after successful retry
-            if (currentRetryContext.feedbackElementId) {
+            if (currentRetryContext.operation !== 'analyze' && currentRetryContext.feedbackElementId) {
                 const feedbackElement = els[currentRetryContext.feedbackElementId] as HTMLTextAreaElement;
                 if (feedbackElement) feedbackElement.value = '';
 
@@ -131,8 +131,11 @@ function hideRetryFeedbackUI() {
 
 // Updated showError function - now uses the unified retry system
 export function showError(errorMessage: string, state: ViewState, retryContext?: RetryContext, isBack = false) {
+    // FIXME: Move error shwoing to a new div
     hideAll();
     els.analysisContent.textContent = errorMessage;
+    els.analysisContent.style.color = 'red';
+
     toggle(els.outputSection, true);
     toggle(els.analysisContent, true);
     toggle(els.backBtn, true);
@@ -152,8 +155,9 @@ export function showError(errorMessage: string, state: ViewState, retryContext?:
 
 // Updated showAnalysis - now uses unified retry system
 async function showAnalysis(html: string, jobId: string, isBack = false) {
-    abortController = null;
     hideAll();
+    els.analysisContent.style.color = 'black';
+    abortController = null;
     setHTML(els.analysisContent, html);
     toggle(els.outputSection, true);
     toggle(els.analysisContent, true);
@@ -165,9 +169,9 @@ async function showAnalysis(html: string, jobId: string, isBack = false) {
     }
 
     toggle(els.jobSpecificContextSection, true);
+    toggle(els.retryBtn, true);
     toggle(els.tailorResumeBtn, true);
     toggle(els.generateCoverLetterBtn, true);
-    toggle(els.retryBtn, true);
     toggle(els.backBtn, true);
     toggle(els.settingsBtn, true);
     toggle(els.outputWarning, true);
@@ -288,10 +292,6 @@ async function showCoverLetter(filename: string, content: string, jobId: string,
 async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, jobId: string, isBack = false) {
     abortController = null;
     hideAll();
-    toggle(els.outputSection, true);
-    toggle(els.backBtn, true);
-    toggle(els.settingsBtn, true);
-    toggle(els.generateCoverLetterBtn, true);
 
     const {jobPostingCache} = await getUserData();
     const currentJobCache = jobPostingCache[jobId];
@@ -376,6 +376,11 @@ async function showResumePreview(filename: string, pdfBuffer: ArrayBuffer, jobId
         toggle(els.downloadTailoredResumeBtn, false);
         console.error("The PDF buffer is empty. Cannot download a file.");
     }
+
+    toggle(els.outputSection, true);
+    toggle(els.backBtn, true);
+    toggle(els.settingsBtn, true);
+    toggle(els.generateCoverLetterBtn, true);
 
     stateMachine.set(ViewState.ResumePreview, isBack, jobId);
     latestJobId = jobId;
@@ -573,7 +578,7 @@ async function onAnalyze(selectedText: string, jobSpecificContext?: string, prev
         abortController = new AbortController();
         showLoading('Analyzing job posting...');
         loadingRotator.start('analyze', {
-            intervalMs: 6000,
+            intervalMs: 7000,
             stopOn: abortController.signal,
         });
         sidepanelLogger.log('[onAnalyze] Calling server for new analysis...');
@@ -629,7 +634,7 @@ async function onGenerateCoverLetter(jobId: string, currentContent?: string, ret
     abortController = new AbortController();
     showLoading('Drafting a cover letter...');
     loadingRotator.start('cover-letter', {
-        intervalMs: 6000,
+        intervalMs: 7000,
         stopOn: abortController.signal,
     });
 
@@ -695,7 +700,7 @@ async function onTailorResume(jobId: string, currentResumeData?: string, retryFe
     abortController = new AbortController();
     showLoading('Tailoring resume...');
     loadingRotator.start('resume', {
-        intervalMs: 6000,
+        intervalMs: 7000,
         stopOn: abortController.signal,
     });
 

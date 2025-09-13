@@ -151,8 +151,7 @@ async function makeApiCallWithFallback(
 
         if (response.status === 429) {
             showError(RATE_LIMIT_ERROR_MESSAGE, errorViewState);
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Rate limit exceeded on fallback model');
+            throw new Error('Rate limit exceeded on fallback model');
         }
 
         if (!response.ok) {
@@ -376,8 +375,7 @@ export async function tailorResume(
 
     if (response.status === 429) {
         showError(RATE_LIMIT_ERROR_MESSAGE, ViewState.ResumePreview);
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Too many requests made to the server.');
+        throw new Error('Too many requests made to the server.');
     }
 
     if (!response.ok) {

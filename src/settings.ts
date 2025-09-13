@@ -136,11 +136,13 @@ export function showSettingsExplainerPopup() {
         els.closeExplainerBtn.addEventListener('click', () => {
             settingsLogger.log('closeExplainerBtn clicked');
             els.settingsExplainerOverlay.classList.add('hidden');
+            els.dataConsentCheckboxSettings.checked = els.dataConsentCheckbox.checked;
         }, {once: true});
 
         els.settingsExplainerOverlay.addEventListener('click', (event) => {
             if (event.target === els.settingsExplainerOverlay) {
                 els.settingsExplainerOverlay.classList.add('hidden');
+                els.dataConsentCheckboxSettings.checked = els.dataConsentCheckbox.checked;
             }
         });
     }
@@ -210,6 +212,11 @@ export async function showUserSettings() {
             return;
         }
 
+        // Disable save button and grey it out
+        els.saveAllSettingsBtn.disabled = true;
+        els.saveAllSettingsBtn.style.opacity = '0.5';
+        els.saveAllSettingsBtn.style.cursor = 'not-allowed';
+
         try {
             let fileContent = '';
             if (file.type === 'application/pdf') {
@@ -224,6 +231,10 @@ export async function showUserSettings() {
             } else {
                 els.userDetailsMessage.textContent = 'Unsupported file type. Please upload a PDF or TXT file.';
                 els.userDetailsMessage.style.color = 'red';
+                // Re-enable save button on error
+                els.saveAllSettingsBtn.disabled = false;
+                els.saveAllSettingsBtn.style.opacity = '1';
+                els.saveAllSettingsBtn.style.cursor = 'pointer';
                 return;
             }
 
@@ -233,10 +244,20 @@ export async function showUserSettings() {
             // Trigger parsing and display
             await parseAndUpdateResume(userData);
 
+            // Re-enable save button after successful processing
+            els.saveAllSettingsBtn.disabled = false;
+            els.saveAllSettingsBtn.style.opacity = '1';
+            els.saveAllSettingsBtn.style.cursor = 'pointer';
+
         } catch (error) {
             console.error('Error reading resume file:', error);
             els.userDetailsMessage.textContent = 'Failed to read resume file. Please try again.';
             els.userDetailsMessage.style.color = 'red';
+
+            // Re-enable save button on error
+            els.saveAllSettingsBtn.disabled = false;
+            els.saveAllSettingsBtn.style.opacity = '1';
+            els.saveAllSettingsBtn.style.cursor = 'pointer';
         }
     });
 
